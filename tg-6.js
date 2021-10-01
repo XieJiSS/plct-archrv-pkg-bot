@@ -463,6 +463,6 @@ onText(/^\/status$/, async (msg, match) => {
     statusStr += "\n\n";
   }
 
-  await replyMessage(chatId, msgId, statusStr);
+  await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
 
