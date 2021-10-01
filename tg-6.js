@@ -118,6 +118,7 @@ function onText(regexp, cb) {
         botName = botName.split(" ", 2)[0];
       }
       if(botName !== process.env["MELON_BOT_NAME"]) {
+        verb("Not my command: expecting", process.env["MELON_BOT_NAME"], "but got", botName)
         return;
       }
     }
