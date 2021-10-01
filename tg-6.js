@@ -122,11 +122,7 @@ function onText(regexp, cb) {
       }
     }
 
-    if(msg.text.startsWith('/')) {
-      return;  // we don't want to handle any command for now
-    } else {
-      return cb(msg, match);
-    }
+    return cb(msg, match);
   }
 
   registerFunction(cb, regexp.toString());
