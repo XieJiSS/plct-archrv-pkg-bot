@@ -461,7 +461,7 @@ onText(/^\/status@?/, async (msg, match) => {
 
   let statusStr = "";
   for(const user of packageStatus) {
-    statusStr += user.username || getMentionLink(user.userid, null, "这个没有用户名的人", null);
+    statusStr += user.username ? toSafeMd(user.username) : getMentionLink(user.userid, null, "这个没有用户名的人", null);
     statusStr += toSafeMd(" - ");
     statusStr += user.packages.length ? "`" + user.packages.map(toSafeCode).join("` `") + "`" : toSafeMd("(empty)");
     statusStr += "\n\n";
