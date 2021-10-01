@@ -415,6 +415,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
 
   if(packageStatus.some(user => user.userid === msg.from.id)) {
     packageStatus.find(user => user.userid === msg.from.id).packages.push(newPackage);
+    localUtils.storePackageStatus();
     await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
     return;
   }
@@ -424,6 +425,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
     username: msg.from.username,
     packages: [ newPackage ],
   });
+  localUtils.storePackageStatus();
   await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
 });
 
@@ -444,6 +446,7 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
     }
     //@ts-ignore
     packageStatus.find(user => user.userid === msg.from.id).packages.remove(mergedPackage);
+    localUtils.storePackageStatus();
     await replyMessage(chatId, msgId, toSafeMd(`记录释放成功`));
     return;
   }
@@ -463,6 +466,6 @@ onText(/^\/status$/, async (msg, match) => {
     statusStr += "\n\n";
   }
 
-  await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
+  await replyMessage(chatId, msgId, statusStr || "empty", { parse_mode: "MarkdownV2" });
 });
 
