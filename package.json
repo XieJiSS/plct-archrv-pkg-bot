@@ -1,0 +1,21 @@
+{
+  "name": "tg-bot-6",
+  "version": "1.0.0",
+  "description": "",
+  "main": "tg-6.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node-telegram-bot-api": "^0.50.0",
+    "dotenv": "^9.0.2",
+    "node-telegram-bot-api": "^0.50.0",
+    "pinyin": "^2.10.2"
+  },
+  "devDependencies": {
+    "@types/pinyin": "^2.8.2"
+  }
+}
