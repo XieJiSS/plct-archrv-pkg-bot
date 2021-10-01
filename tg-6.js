@@ -455,7 +455,7 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
   await replyMessage(chatId, msgId, toSafeMd(`你还没有认领任何 package`));
 });
 
-onText(/^\/status$/, async (msg, match) => {
+onText(/^\/status@?/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
 
@@ -466,6 +466,8 @@ onText(/^\/status$/, async (msg, match) => {
     statusStr += user.packages.length ? "`" + user.packages.map(toSafeCode).join("` `") + "`" : toSafeMd("(empty)");
     statusStr += "\n\n";
   }
+
+  statusStr += "\n可以通过 add 和 merge 命令来维护此列表。";
 
   await replyMessage(chatId, msgId, statusStr || "empty", { parse_mode: "MarkdownV2" });
 });
