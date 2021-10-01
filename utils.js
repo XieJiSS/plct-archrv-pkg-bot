@@ -325,23 +325,6 @@ function readableFileSize(bytes) {
 }
 registerFunction(readableFileSize);
 
-/**
- * @param {string[][]} pys
- */
- function pinyins2str(pys) {
-  const result = [];
-  for(const charPinyins of pys) {
-    if(charPinyins.length === 0) {
-      result.push("?");
-    } else if(charPinyins.length === 1) {
-      result.push(charPinyins[0]);
-    } else {
-      result.push(`[ ${charPinyins.join(", ")} ]`);
-    }
-  }
-  return result.join(" ");
-}
-registerFunction(pinyins2str);
 
 /**
  * @param {string} filePath
@@ -426,7 +409,6 @@ module.exports = {
   toSafeMd,
   toSafeCode,
   readableFileSize,
-  pinyins2str,
   cleanup,
   sleep,
   type,

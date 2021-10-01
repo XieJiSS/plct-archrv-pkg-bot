@@ -12,10 +12,6 @@
   "dependencies": {
     "@types/node-telegram-bot-api": "^0.50.0",
     "dotenv": "^9.0.2",
-    "node-telegram-bot-api": "^0.50.0",
-    "pinyin": "^2.10.2"
-  },
-  "devDependencies": {
-    "@types/pinyin": "^2.8.2"
+    "node-telegram-bot-api": "^0.50.0"
   }
 }

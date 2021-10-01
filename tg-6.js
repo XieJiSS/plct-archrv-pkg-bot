@@ -7,7 +7,6 @@ const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
 const assert = require("assert");
 const { inspect } = require("util");
-const pinyin = require("pinyin");
 
 console.log("[INFO]", "PID", process.pid);  // eslint-disable-line
 const verb = require("./_verbose");
@@ -30,7 +29,6 @@ const {
   toSafeMd,
   toSafeCode,
   readableFileSize,
-  pinyins2str,
   cleanup,
   sleep,
   type,
