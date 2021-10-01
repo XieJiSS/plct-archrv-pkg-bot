@@ -467,8 +467,9 @@ onText(/^\/status@?/, async (msg, match) => {
     statusStr += "\n\n";
   }
 
+  statusStr = statusStr || "(empty)";
   statusStr += "\n可以通过 add 和 merge 命令来维护此列表。";
 
-  await replyMessage(chatId, msgId, statusStr || "empty", { parse_mode: "MarkdownV2" });
+  await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
 

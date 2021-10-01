@@ -140,8 +140,8 @@ registerFunction(storeChatSettings);
 
 async function storePackageStatus() {
   verb(storePackageStatus);
-  await writeFile(__dirname + "/packageStatus.json", JSON.stringify(CHAT_SETTINGS, null, 2));
-  await writeFile(__dirname + "/packageStatus.bak.json", JSON.stringify(CHAT_SETTINGS, null, 2));
+  await writeFile(__dirname + "/packageStatus.json", JSON.stringify(packageStatus, null, 2));
+  await writeFile(__dirname + "/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
 }
 registerFunction(storeChatSettings);
 
