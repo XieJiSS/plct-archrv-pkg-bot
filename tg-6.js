@@ -409,6 +409,8 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const msgId = msg.message_id;
   const newPackage = match[1];
 
+  verb("trying to add", newPackage);
+
   if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === newPackage)).length) {
     await replyMessage(chatId, msgId, toSafeMd(`这个 package 已被认领`));
     return;
@@ -435,6 +437,8 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
   const msgId = msg.message_id;
   const mergedPackage = match[1];
 
+  verb("trying to merge", mergedPackage);
+
   if(!packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === mergedPackage)).length) {
     await replyMessage(chatId, msgId, toSafeMd(`这个 package 不在认领记录中`));
     return;
@@ -455,9 +459,11 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
   await replyMessage(chatId, msgId, toSafeMd(`你还没有认领任何 package`));
 });
 
-onText(/^\/status@?/, async (msg, match) => {
+onText(/^\/status@?/, async (msg) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
+
+  verb("trying to show status...");
 
   let statusStr = "";
   for(const user of packageStatus) {
@@ -473,3 +479,9 @@ onText(/^\/status@?/, async (msg, match) => {
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
 
+bot.on("message", (msg) => {
+  const text = msg.text;
+  if(text && text.startsWith("/")) {
+    verb("got command from", msg.chat.title || msg.chat.id, msg.text);
+  }
+});
