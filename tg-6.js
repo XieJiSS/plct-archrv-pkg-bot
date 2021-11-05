@@ -485,6 +485,7 @@ onText(/^\/mark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 
 onText(/^\/mark/, async (msg) => {
   const chatId = msg.chat.id;
+  if(/^\/mark\s+(\S+)\s+(\S+)$/.test(msg.text)) return;
   return await showMarkHelp(chatId);
 });
 
@@ -533,7 +534,7 @@ onText(/^\/status@?/, async (msg) => {
     statusStr += "\n\n";
   }
 
-  statusStr = statusStr || "(empty)";
+  statusStr = statusStr || toSafeMd("(empty)");
   statusStr += "\n可以通过 add 和 merge 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。";
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
@@ -548,13 +549,13 @@ onText(/^\/more@?/, async (msg) => {
   let statusStr = "";
   for(const pkg of packageMarks) {
     if(pkg.marks.length === 0) continue;
-    statusStr += toSafeMd(pkg.name);
+    statusStr += "`" + toSafeCode(pkg.name) + "`";
     statusStr += toSafeMd(":\n");
     statusStr += "`" + marksToStringArr(pkg.marks).map(toSafeCode).join("`\n`") + "`";
     statusStr += "\n\n";
   }
 
-  statusStr = statusStr || "(empty)";
+  statusStr = statusStr || toSafeMd("(empty)");
   statusStr += "\n可以使用 mark 和 unmark 命令来维护此列表。";
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
