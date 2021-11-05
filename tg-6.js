@@ -415,7 +415,11 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   if(packageStatus.some(user => user.userid === msg.from.id)) {
     packageStatus.find(user => user.userid === msg.from.id).packages.push(newPackage);
     storePackageStatus();
-    await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
+    if(packageMarks.some(pkg => pkg.name === newPackage)) {
+      await replyMessage(chatId, msgId, toSafeMd(`认领成功，但请注意该 package 有特殊状态。\n可以用 more 命令查看`));
+    } else {
+      await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
+    }
     return;
   }
 
