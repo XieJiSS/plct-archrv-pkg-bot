@@ -8,24 +8,8 @@ const { promisify } = require("util");
 const unlink = promisify(fs.unlink);
 const writeFile = promisify(fs.writeFile);
 
-const cache = require("./_timedCache");
 const verb = require("./_verbose");
 
-/**
- * @type {Object.<string, string>}
- */
-const CHATS_TO_ID = {};
-/**
- * @type {Object.<string, {
-    delete?: boolean;
-    seal?: boolean;
-    keywords?: boolean;
-    censor?: boolean;
-    at?: boolean;
-    revert?: boolean;
-  }>}
- */
-let CHAT_SETTINGS = {};
 /**
  * @type {{ userid: number; username: string | undefined; packages: string[]; }[]}
  */
@@ -42,9 +26,10 @@ const MARK2STR = {
   upstreamed: "等待上游",
   outdated: "需要滚版本",
   outdated_dep: "需要滚依赖版本",
-  stuck: "卡住",
+  stuck: "无进展",
   noqemu: "仅在板子上编译成功",
   ready: "已经能够编译",
+  pending: "已修好但网页上状态仍为 FTBFS",
 };
 /**
  * @param {string[]} marks
@@ -78,35 +63,6 @@ setInterval(() => {
   if(id >= 2) id = 0;
 }, 60 * 60 * 1e3);
 
-/**
- * @type {Object<string, Object>}
- */
-const symbolMap = {};
-
-/**
- * @param {Function} func
- * @param {string} [name]
- */
-function registerFunction(func, name) {
-  if(!func.name) {
-    if(!name) return;
-    symbolMap[name] = func;
-  } else {
-    symbolMap[func.name] = func;
-  }
-}
-registerFunction(registerFunction);
-
-/**
- * @param {Object} obj
- * @param {string} name
- */
-function registerObject(obj, name) {
-  if(name) {
-    symbolMap[name] = obj;
-  }
-}
-registerFunction(registerObject);
 
 /**
  * @type {string[][]}
@@ -122,7 +78,6 @@ function registerKeyword(kw, resp) {
   if(!kw) return;
   keywords.push([kw, resp]);
 }
-registerFunction(registerKeyword);
 
 /**
  *
@@ -134,7 +89,6 @@ function registerKeywordList(kwList, resp) {
     registerKeyword(kw, resp);
   });
 }
-registerFunction(registerKeywordList);
 
 /**
  * @param {number} ms
@@ -142,60 +96,18 @@ registerFunction(registerKeywordList);
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
-registerFunction(sleep);
-
-/**
- * @param {string} chatUserName
- * @param {string} chatId
- * @param {boolean} shouldSave true for auto detection
- */
-function registerChatId(chatUserName, chatId, shouldSave) {
-  if(chatUserName in CHATS_TO_ID) {
-    if(CHATS_TO_ID[chatUserName] === chatId) {
-      return;
-    }
-  }
-  CHATS_TO_ID[chatUserName] = chatId;
-  if(shouldSave && !WILL_QUIT_SOON) {
-    saveChatIds();
-  }
-}
-registerFunction(registerChatId);
-
-async function storeCheckinStatus() {
-  verb(storeCheckinStatus);
-  await writeFile(__dirname + "/checkin.json", JSON.stringify(cache.get("checkin"), null, 2));
-}
-registerFunction(storeCheckinStatus);
-
-async function storeChatSettings() {
-  verb(storeChatSettings);
-  await writeFile(__dirname + "/chatSettings.json", JSON.stringify(CHAT_SETTINGS, null, 2));
-}
-registerFunction(storeChatSettings);
 
 async function storePackageStatus() {
   verb(storePackageStatus);
   await writeFile(__dirname + "/packageStatus.json", JSON.stringify(packageStatus, null, 2));
   await writeFile(__dirname + "/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
 }
-registerFunction(storePackageStatus);
 
 async function storePackageMarks() {
   verb(storePackageMarks);
   await writeFile(__dirname + "/packageMarks.json", JSON.stringify(packageMarks, null, 2));
   await writeFile(__dirname + "/packageMarks.bak.json", JSON.stringify(packageMarks, null, 2));
 }
-registerFunction(storePackageMarks);
-
-function loadChatSettings() {
-  verb(loadChatSettings);
-  CHAT_SETTINGS = require("./chatSettings.json");
-}
-registerFunction(loadChatSettings);
-
-loadChatSettings();
-verb("Saved chat settings", CHAT_SETTINGS);
 
 function loadPackageStatus() {
   verb(loadPackageStatus);
@@ -210,7 +122,6 @@ function loadPackageStatus() {
     }
   }
 }
-registerFunction(loadPackageStatus);
 loadPackageStatus();
 
 function loadPackageMarks() {
@@ -226,61 +137,15 @@ function loadPackageMarks() {
     }
   }
 }
-registerFunction(loadPackageMarks);
 loadPackageMarks();
-
-async function saveChatIds() {
-  await writeFile(__dirname + "/chats.json", JSON.stringify(CHATS_TO_ID, null, 2));
-}
-registerFunction(saveChatIds);
-
-function loadChatIds() {
-  if(fs.existsSync(__dirname + "/chats.json")) {
-    /**
-     * @type {Object.<string, string>}
-     */
-    // @ts-ignore
-    const savedChats = require("./chats.json");
-    for(let chat in savedChats) {
-      if(typeof savedChats[chat] !== "string") {
-        throw TypeError("chats.json should be of type Object.<string, string>. Check " + chat);
-      }
-      if(chat.startsWith("@")) CHATS_TO_ID[chat] = String(savedChats[chat]);
-      else throw RangeError("In chats.json, chat username should starts with @. Check " + chat);
-    }
-  }
-}
-registerFunction(loadChatIds);
-
-loadChatIds();
-verb("savedChatsInfo", CHATS_TO_ID);
 
 function getTodayTimestamp() {
   const now = Date.now();
   const extra = (now + TZ * 3600 * 1e3) % (24 * 3600 * 1e3);
   return now - extra;
 }
-registerFunction(getTodayTimestamp);
-
-/**
- * @type {Object.<string, [number, number, number][]>}
- */
-// @ts-ignore
-const checkinStatus = require("./checkin.json");
-
-for (let uid in checkinStatus) {
-  checkinStatus[uid] = checkinStatus[uid].filter((dateArr) => {
-    const then = new Date(...dateArr).getTime();
-    const lowerBound = getTodayTimestamp() - 30 * (24 * 3600 * 1e3);
-    return then >= lowerBound;
-  });
-}
 
 //  ------------ initialize cache ------------- //
-
-cache.add("stoppedPids", [], Infinity);
-cache.add("checkin", checkinStatus, Infinity);
-storeCheckinStatus();
 
 /**
  * @param {{
@@ -298,7 +163,6 @@ function getMsgLink(options) {
   }
   return `${msgLinkBase}/${options.msgId}`;
 }
-registerFunction(getMsgLink);
 
 /**
  * @param {string | number} uid
@@ -321,7 +185,6 @@ function getMentionLink(uid, username, firstName = "", lastName = "", tag = fals
   }
   return `[${userDisplayName}](tg://user?id=${uid})`;
 }
-registerFunction(getMentionLink);
 
 
 /**
@@ -343,7 +206,6 @@ registerFunction(getMentionLink);
   }
   return [sizeX, sizeY];
 }
-registerFunction(getArrayXYSize);
 
 /**
  * @param {string | number} unsafeMd unsafe markdown v2 text
@@ -354,7 +216,6 @@ function toSafeMd(unsafeMd) {
   // eslint-disable-next-line no-useless-escape
   return unsafeMd.replace(/([[\]()_*~`>#+\-=|{}\.!\\])/g, "\\$1");
 }
-registerFunction(toSafeMd);
 
 /**
  * @param {string} unsafeCode unsafe markdown v2 code
@@ -362,7 +223,6 @@ registerFunction(toSafeMd);
 function toSafeCode(unsafeCode) {
   return unsafeCode.replace(/([`\\])/g, "\\$1");
 }
-registerFunction(toSafeCode);
 
 /**
  * @param {number} bytes
@@ -382,7 +242,6 @@ function readableFileSize(bytes) {
   }
   return result.trim();
 }
-registerFunction(readableFileSize);
 
 
 /**
@@ -398,7 +257,6 @@ async function cleanup(filePath, complain = true) {
       verb(cleanup, err);
   }
 }
-registerFunction(cleanup);
 
 /**
  * @param {any} symbol
@@ -407,7 +265,6 @@ registerFunction(cleanup);
 function type(symbol) {
   return ({}).toString.call(symbol).slice(8, -1).toLowerCase();
 }
-registerFunction(type);
 
 /**
  * @param {string} text
@@ -417,7 +274,6 @@ function sha512hex(text) {
   const hashResult = hashInstance.update(text, "utf8");
   return hashResult.digest("hex");
 }
-registerFunction(sha512hex);
 
 
 /**
@@ -443,25 +299,16 @@ registerFunction(sha512hex);
 }
 
 module.exports = {
-  CHATS_TO_ID,
-  CHAT_SETTINGS,
   HELP_DISPLAY_SEC,
   MAX_SLEEP_TIME,
   WILL_QUIT_SOON,
   MARK2STR,
-  symbolMap,
-  checkinStatus,
   keywords,
   packageStatus,
   packageMarks,
   marksToStringArr,
-  registerFunction,
-  registerObject,
-  registerChatId,
   registerKeyword,
   registerKeywordList,
-  storeCheckinStatus,
-  storeChatSettings,
   storePackageStatus,
   storePackageMarks,
   getTodayTimestamp,

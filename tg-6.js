@@ -4,23 +4,15 @@
 require('dotenv').config();
 
 const TelegramBot = require("node-telegram-bot-api");
-const fs = require("fs");
-const assert = require("assert");
 const { inspect } = require("util");
 
 console.log("[INFO]", "PID", process.pid);  // eslint-disable-line
 const verb = require("./_verbose");
 
 const localUtils = require("./utils");
-const PRNG = require("./_rand");
-const shuffle = require("./_shuffle");
-const printTable = require('./_obj2table');
 
 const {
-  registerFunction,
-  registerObject,
   marksToStringArr,
-  getMsgLink,
   getMentionLink,
   toSafeMd,
   toSafeCode,
@@ -34,7 +26,7 @@ const {
 } = localUtils;
 
 // replace the value below with the Telegram token you receive from @BotFather
-let token = process.env["MELON_BOT_TOKEN"];
+let token = process.env["PLCT_BOT_TOKEN"];
 
 /**
  * @template T
@@ -58,8 +50,7 @@ Array.prototype.remove = function(value) {
 }
 
 const bot = new TelegramBot(token, { polling: true });
-const ADMIN_ID = Number(process.env["MELON_BOT_ADMIN_USERID"]);
-const BOT_ID = 0;  // @TODO:
+const ADMIN_ID = Number(process.env["PLCT_BOT_ADMIN_USERID"]);
 
 //  --------- initialize cache ends ----------- //
 
@@ -69,33 +60,12 @@ const BOT_ID = 0;  // @TODO:
 const defaultMessageOption = Object.freeze({
   disable_notification: true,
 });
-registerObject(defaultMessageOption, "defaultMessageOption");
 const defaultPollOption = Object.freeze({
   is_anonymous: false,
 });
-registerObject(defaultPollOption, "defaultPollOption");
 
 verb("defaultMessageOption", defaultMessageOption);
 verb("defaultPollOption", defaultPollOption);
-
-
-/**
- * @param {string[]} keywords
- * @param {(msg: TelegramBot.Message, match: RegExpExecArray | null) => void} cb
- */
-function onKwds(keywords, cb) {
-  return onText(kwd2regexp(keywords), cb);
-}
-registerFunction(onKwds);
-
-/**
- * @param {string[]} keywords
- * @param {(msg: TelegramBot.Message, match: RegExpExecArray | null) => void} cb
- */
- function onFullKwds(keywords, cb) {
-  return onText(fullKwd2regexp(keywords), cb);
-}
-registerFunction(onFullKwds);
 
 /**
  * @param {RegExp} regexp
@@ -113,8 +83,8 @@ function onText(regexp, cb) {
       if(/^[a-zA-Z0-9_]+? /.test(botName)) {
         botName = botName.split(" ", 2)[0];
       }
-      if(botName !== process.env["MELON_BOT_NAME"]) {
-        verb("Not my command: expecting", process.env["MELON_BOT_NAME"], "but got", botName)
+      if(botName !== process.env["PLCT_BOT_NAME"]) {
+        verb("Not my command: expecting", process.env["PLCT_BOT_NAME"], "but got", botName)
         return;
       }
     }
@@ -122,11 +92,9 @@ function onText(regexp, cb) {
     return cb(msg, match);
   }
 
-  registerFunction(cb, regexp.toString());
-
+  
   return bot.onText(regexp, wrappedCallback);
 }
-registerFunction(onText);
 
 
 //  ---------- TelegramBot related functions ----------- //
@@ -143,6 +111,7 @@ registerFunction(onText);
  */
 const messageQueue = [];
 
+// wrapper: push message to queue
 /**
  * @param {number | string} chatId
  * @param {string} text
@@ -163,6 +132,8 @@ function sendMessageWithRateLimit(chatId, text, _options, options = {}) {
   });
 }
 
+// consume message from queue with rate limit
+// messages are added to queue by `sendMessage()`
 async function doSendMessage() {
   if(messageQueue.length === 0) {
     await sleep(500);
@@ -189,9 +160,9 @@ async function doSendMessage() {
   setTimeout(() => doSendMessage(), 0);
   return;
 }
-
 setTimeout(() => doSendMessage(), 1000);
 
+// push message to queue
 /**
  * @param {number | string} chatId
  * @param {string} text
@@ -224,7 +195,6 @@ function sendMessage(chatId, text, options = {}) {
   // @ts-ignore
   return sendMessageWithRateLimit(chatId, text, _options, options);
 }
-registerFunction(sendMessage);
 
 /**
  * @param {number | string} chatId
@@ -246,7 +216,6 @@ function replyMessage(chatId, msgId, text, options = {}) {
     }
   });
 }
-registerFunction(replyMessage);
 
 /**
  * @param {number | string} chatId
@@ -262,7 +231,6 @@ function editMessage(chatId, msgId, newText) {
     return sendMessage(chatId, newText, defaultMessageOption);
   });
 }
-registerFunction(editMessage);
 
 
 /**
@@ -271,17 +239,12 @@ registerFunction(editMessage);
  * @param {number} ms
  */
 async function deleteAfter(chatId, msgId, ms) {
-  const settings = localUtils.CHAT_SETTINGS[String(chatId)];
-  if(settings && settings.delete === false) {
-    return;
-  }
   await sleep(ms);
   verb("Deleting message", msgId, "of chat", chatId);
   bot.deleteMessage(chatId, String(msgId)).catch(() => {
     verb("Failed to delete message", msgId, "of chat", chatId);
   });
 }
-registerFunction(deleteAfter);
 
 /**
  * @param {string | number} chatId
@@ -294,111 +257,10 @@ async function replyAndDeleteAfter(chatId, msgId, text, ms, options = {}) {
   const sentMsg = await replyMessage(chatId, msgId, text, options);
   deleteAfter(chatId, sentMsg.message_id, ms);
 }
-registerFunction(replyAndDeleteAfter);
 
-/**
- * @param {string} text
- * @param {string} callbackData
- * @returns {TelegramBot.InlineKeyboardButton}
- */
- function makeInlineKbdButton(text, callbackData) {
-  return {
-    text,
-    callback_data: callbackData,
-  };
-}
-registerFunction(makeInlineKbdButton);
-
-/**
- * @param {string[][]} buttons
- * @param {string[][]} callbackDataArr
- * @returns {TelegramBot.InlineKeyboardMarkup}
- */
-function makeInlineKbdMarkup(buttons, callbackDataArr) {
-  const buttonsSize = localUtils.getArrayXYSize(buttons);
-  const callbackSize = localUtils.getArrayXYSize(callbackDataArr);
-  if(buttonsSize[0] !== callbackSize[0] || buttonsSize[1] !== callbackSize[1]) {
-    verb(makeInlineKbdMarkup, `failed to make: buttons and callbackDataArr are of different size (${buttonsSize}), (${callbackSize})`);
-    return {
-      inline_keyboard: [[]],
-    };
-  }
-  /**
-   * @type {TelegramBot.InlineKeyboardButton[][]}
-   */
-  const keyboard = Array.from(new Array(buttonsSize[0]), () => {
-    return new Array(buttonsSize[1]);
-  });
-  for(let i = 0; i < buttonsSize[0]; i++) {
-    for(let j = 0; j < buttonsSize[1]; j++) {
-      keyboard[i][j] = makeInlineKbdButton(buttons[i][j], callbackDataArr[i][j]);
-    }
-  }
-  return {
-    inline_keyboard: keyboard
-  };
-}
-registerFunction(makeInlineKbdMarkup);
-
-/**
- * @param {string} callbackQueryId
- * @param {string} text
- * @see https://core.telegram.org/bots/api#answercallbackquery
- */
-async function sendAlertBox(callbackQueryId, text) {
-  return await bot.answerCallbackQuery(callbackQueryId, {
-    text,
-    show_alert: true,
-    cache_time: 0,
-  });
-}
-registerFunction(sendAlertBox);
-
-/**
- * @param {string} callbackQueryId
- * @param {string} text
- * @see https://core.telegram.org/bots/api#answercallbackquery
- */
-async function sendBanner(callbackQueryId, text) {
-  return await bot.answerCallbackQuery(callbackQueryId, {
-    text,
-    show_alert: false,
-    cache_time: 0,
-  });
-}
-registerFunction(sendBanner);
 
 //  --------- TelegramBot related functions end ----------  //
 
-
-/**
- * @param {string | number} chatId
- * @returns {Promise<TelegramBot.ChatMember[]>}
- */
-async function getAdminsByChatId(chatId) {
-  /**
-   * @type {TelegramBot.ChatMember[]}
-   */
-  const admins = await bot.getChatAdministrators(chatId).catch(() => []);
-  return admins;
-}
-
-/**
- * @param {string | number} chatId
- * @returns {Promise<number[]>}
- */
-async function getAdminIdsByChatId(chatId) {
-  return (await getAdminsByChatId(chatId)).map(admin => admin.user.id);
-}
-
-/**
- * @param {string | number} chatId
- * @param {string} userId
- * @returns {Promise<TelegramBot.ChatMember?>}
- */
-async function getChatUserByUserId(chatId, userId) {
-  return await bot.getChatMember(chatId, userId).catch(() => null);
-}
 
 onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;

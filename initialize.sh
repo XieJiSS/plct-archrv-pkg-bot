@@ -1,4 +1,4 @@
-# chats info
-touch chats.json
 touch packageStatus.json
 touch packageStatus.bak.json
+touch packageMarks.json
+touch packageMarks.bak.json
