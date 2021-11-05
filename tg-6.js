@@ -551,7 +551,7 @@ onText(/^\/more@?/, async (msg) => {
     if(pkg.marks.length === 0) continue;
     statusStr += "`" + toSafeCode(pkg.name) + "`";
     statusStr += toSafeMd(":\n");
-    statusStr += "`" + marksToStringArr(pkg.marks).map(toSafeCode).join("`\n`") + "`";
+    statusStr += toSafeMd(marksToStringArr(pkg.marks).join("\n"));
     statusStr += "\n\n";
   }
 
