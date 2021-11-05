@@ -276,22 +276,25 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
 
   if(packageStatus.some(user => user.userid === msg.from.id)) {
     packageStatus.find(user => user.userid === msg.from.id).packages.push(newPackage);
-    storePackageStatus();
-    if(packageMarks.some(pkg => pkg.name === newPackage)) {
-      await replyMessage(chatId, msgId, toSafeMd(`认领成功，但请注意该 package 有特殊状态。\n可以用 more 命令查看`));
-    } else {
-      await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
-    }
-    return;
+  } else {
+    packageStatus.push({
+      userid: msg.from.id,
+      username: msg.from.username,
+      packages: [ newPackage ],
+    });
   }
-
-  packageStatus.push({
-    userid: msg.from.id,
-    username: msg.from.username,
-    packages: [ newPackage ],
-  });
   storePackageStatus();
-  await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
+
+  let marks = packageMarks.filter(pkg => pkg.name === newPackage);
+  if(marks.length && marks[0].marks.length) {
+    marks = marks[0].marks;
+    let statusStr = "";
+    statusStr += toSafeMd(marksToStringArr(marks).join("\n"));
+    statusStr += "\n\n";
+    await replyMessage(chatId, msgId, toSafeMd(`认领成功，但请注意该 package 有特殊状态:\n`)+statusStr+toSafeMd(`可以用 more 命令查看完整列表`), { parse_mode: "MarkdownV2" });
+  } else {
+    await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
+  }
 });
 
 onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
@@ -413,13 +416,31 @@ onText(/^\/more@?/, async (msg) => {
   verb("trying to show mark status...");
 
   let statusStr = "";
+  let eachMark = new Map();
   for(const pkg of packageMarks) {
     if(pkg.marks.length === 0) continue;
+    marksToStringArr(pkg.marks).forEach((mark) => {
+      if(!eachMark.has(mark)) {
+        eachMark.set(mark, []);
+      }
+      eachMark.get(mark).push(pkg.name);
+    });
+    if(pkg.marks.length === 1) continue;
+    statusStr = statusStr || "同时具有多个状态的包:\n\n";
     statusStr += "`" + toSafeCode(pkg.name) + "`";
     statusStr += toSafeMd(":\n");
     statusStr += toSafeMd(marksToStringArr(pkg.marks).join("\n"));
     statusStr += "\n\n";
   }
+
+  let marksStr = "";
+  eachMark.forEach((namesArr, mark) => {
+    marksStr += toSafeMd(mark);
+    marksStr += toSafeMd(":\n");
+    marksStr += "`" + toSafeCode(namesArr.join(" ")) + "`";
+    marksStr += "\n\n";
+  });
+  statusStr = marksStr + statusStr;
 
   statusStr = statusStr || toSafeMd("(empty)");
   statusStr += "\n可以使用 mark 和 unmark 命令来维护此列表。";
