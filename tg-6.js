@@ -19,22 +19,18 @@ const printTable = require('./_obj2table');
 const {
   registerFunction,
   registerObject,
-  registerChatId,
-  registerKeyword,
-  registerKeywordList,
-  storeCheckinStatus,
-  getTodayTimestamp,
+  marksToStringArr,
   getMsgLink,
   getMentionLink,
   toSafeMd,
   toSafeCode,
-  readableFileSize,
-  cleanup,
   sleep,
-  type,
   kwd2regexp,
   fullKwd2regexp,
   packageStatus,
+  storePackageStatus,
+  packageMarks,
+  storePackageMarks,
 } = localUtils;
 
 // replace the value below with the Telegram token you receive from @BotFather
@@ -418,7 +414,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
 
   if(packageStatus.some(user => user.userid === msg.from.id)) {
     packageStatus.find(user => user.userid === msg.from.id).packages.push(newPackage);
-    localUtils.storePackageStatus();
+    storePackageStatus();
     await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
     return;
   }
@@ -428,7 +424,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
     username: msg.from.username,
     packages: [ newPackage ],
   });
-  localUtils.storePackageStatus();
+  storePackageStatus();
   await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
 });
 
@@ -451,13 +447,77 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
     }
     //@ts-ignore
     packageStatus.find(user => user.userid === msg.from.id).packages.remove(mergedPackage);
-    localUtils.storePackageStatus();
+    storePackageStatus();
     await replyMessage(chatId, msgId, toSafeMd(`记录释放成功`));
     return;
   }
 
   await replyMessage(chatId, msgId, toSafeMd(`你还没有认领任何 package`));
 });
+
+onText(/^\/mark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const msgId = msg.message_id;
+  const pkg = match[1];
+  const mark = match[2];
+
+  verb("trying to mark", pkg, "as", mark);
+
+  if(!Object.keys(localUtils.MARK2STR).includes(mark)) {
+    return await showMarkHelp(chatId);
+  }
+
+  if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
+    const target = packageMarks.filter(obj => obj.name === pkg)[0];
+    if(!target.marks.includes(mark)) {
+      target.marks.push(mark);
+      target.marks.sort();
+    }
+  } else {
+    packageMarks.push({
+      name: pkg,
+      marks: [ mark ],
+    });
+  }
+  storePackageMarks();
+  await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+});
+
+onText(/^\/mark/, async (msg) => {
+  const chatId = msg.chat.id;
+  return await showMarkHelp(chatId);
+});
+
+onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const msgId = msg.message_id;
+  const pkg = match[1];
+  const mark = match[2];
+
+  verb("trying to unmark", pkg, "'s", mark, "mark");
+
+  if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
+    const target = packageMarks.filter(obj => obj.name === pkg)[0];
+    if(target.marks.includes(mark)) {
+      target.marks = target.marks.filter(str => str !== mark).sort();
+      storePackageMarks();
+      return await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+    } else {
+      return await replyMessage(chatId, msgId, toSafeMd(`该 package 目前未被设定为此状态`));
+    }
+  } else {
+    return await replyMessage(chatId, msgId, toSafeMd(`表中没有该 package`));
+  }
+});
+
+/**
+ * @param {number} chatId
+ */
+async function showMarkHelp(chatId) {
+  await sendMessage(chatId, toSafeMd(`/mark 用法：\n/mark pkg status\n\n可用的 status 包括 ${
+    Object.keys(localUtils.MARK2STR).join(", ")
+  }`));
+}
 
 onText(/^\/status@?/, async (msg) => {
   const chatId = msg.chat.id;
@@ -474,7 +534,28 @@ onText(/^\/status@?/, async (msg) => {
   }
 
   statusStr = statusStr || "(empty)";
-  statusStr += "\n可以通过 add 和 merge 命令来维护此列表。";
+  statusStr += "\n可以通过 add 和 merge 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。";
+
+  await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
+});
+
+onText(/^\/more@?/, async (msg) => {
+  const chatId = msg.chat.id;
+  const msgId = msg.message_id;
+
+  verb("trying to show mark status...");
+
+  let statusStr = "";
+  for(const pkg of packageMarks) {
+    if(pkg.marks.length === 0) continue;
+    statusStr += toSafeMd(pkg.name);
+    statusStr += toSafeMd(":\n");
+    statusStr += "`" + marksToStringArr(pkg.marks).map(toSafeCode).join("`\n`") + "`";
+    statusStr += "\n\n";
+  }
+
+  statusStr = statusStr || "(empty)";
+  statusStr += "\n可以使用 mark 和 unmark 命令来维护此列表。";
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });

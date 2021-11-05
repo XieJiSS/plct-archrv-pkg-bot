@@ -30,6 +30,42 @@ let CHAT_SETTINGS = {};
  * @type {{ userid: number; username: string | undefined; packages: string[]; }[]}
  */
 let packageStatus = [];
+/**
+ * @type {{ name: string; marks: string[]; }[]}
+ */
+let packageMarks = [];
+/**
+ * @type {Object<string, string>}
+ */
+const MARK2STR = {
+  unknown: "unknown",
+  upstreamed: "等待上游",
+  outdated: "需要滚版本",
+  outdated_dep: "需要滚依赖版本",
+  stuck: "卡住",
+  noqemu: "仅在板子上编译成功",
+  ready: "已经能够编译",
+};
+/**
+ * @param {string[]} marks
+ * @returns {string[]}
+ */
+function marksToStringArr(marks) {
+  if(marks.length === 0) return [];
+  /**
+   * @type {string[]}
+   */
+  const result = [];
+  for(const mark of marks) {
+    if(mark in MARK2STR) {
+      result.push(`(#${mark} ${MARK2STR[mark]})`);
+    } else {
+      result.push(`(#${mark} ${MARK2STR["unknown"]})`);
+    }
+  }
+  return result;
+}
+
 const HELP_DISPLAY_SEC = 120;
 const MAX_SLEEP_TIME = 2147483647 - 60 * 1e3;  // to avoid TimeoutOverflowWarning, with redundancy
 let WILL_QUIT_SOON = false;
@@ -143,7 +179,14 @@ async function storePackageStatus() {
   await writeFile(__dirname + "/packageStatus.json", JSON.stringify(packageStatus, null, 2));
   await writeFile(__dirname + "/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
 }
-registerFunction(storeChatSettings);
+registerFunction(storePackageStatus);
+
+async function storePackageMarks() {
+  verb(storePackageMarks);
+  await writeFile(__dirname + "/packageMarks.json", JSON.stringify(packageMarks, null, 2));
+  await writeFile(__dirname + "/packageMarks.bak.json", JSON.stringify(packageMarks, null, 2));
+}
+registerFunction(storePackageMarks);
 
 function loadChatSettings() {
   verb(loadChatSettings);
@@ -169,6 +212,22 @@ function loadPackageStatus() {
 }
 registerFunction(loadPackageStatus);
 loadPackageStatus();
+
+function loadPackageMarks() {
+  verb(loadPackageMarks);
+  try {
+    packageMarks = require("./packageMarks.json");
+  } catch(e) {
+    try {
+      packageMarks = require("./packageMarks.bak.json");
+    } catch(e) {
+      packageMarks = [];
+      storePackageMarks();
+    }
+  }
+}
+registerFunction(loadPackageMarks);
+loadPackageMarks();
 
 async function saveChatIds() {
   await writeFile(__dirname + "/chats.json", JSON.stringify(CHATS_TO_ID, null, 2));
@@ -389,10 +448,13 @@ module.exports = {
   HELP_DISPLAY_SEC,
   MAX_SLEEP_TIME,
   WILL_QUIT_SOON,
+  MARK2STR,
   symbolMap,
   checkinStatus,
   keywords,
   packageStatus,
+  packageMarks,
+  marksToStringArr,
   registerFunction,
   registerObject,
   registerChatId,
@@ -401,6 +463,7 @@ module.exports = {
   storeCheckinStatus,
   storeChatSettings,
   storePackageStatus,
+  storePackageMarks,
   getTodayTimestamp,
   getMsgLink,
   getMentionLink,
