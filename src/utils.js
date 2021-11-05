@@ -56,13 +56,6 @@ const MAX_SLEEP_TIME = 2147483647 - 60 * 1e3;  // to avoid TimeoutOverflowWarnin
 let WILL_QUIT_SOON = false;
 const TZ = +8;  // UTC+8
 
-let id = 0;
-
-setInterval(() => {
-  fs.copyFileSync(path.join(__dirname, "checkin.json"), path.join(__dirname, "../", `checkin-backup-${id++}.json`));
-  if(id >= 2) id = 0;
-}, 60 * 60 * 1e3);
-
 
 /**
  * @type {string[][]}
@@ -99,23 +92,23 @@ function sleep(ms) {
 
 async function storePackageStatus() {
   verb(storePackageStatus);
-  await writeFile(__dirname + "/packageStatus.json", JSON.stringify(packageStatus, null, 2));
-  await writeFile(__dirname + "/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
+  await writeFile(__dirname + "/../db/packageStatus.json", JSON.stringify(packageStatus, null, 2));
+  await writeFile(__dirname + "/../db/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
 }
 
 async function storePackageMarks() {
   verb(storePackageMarks);
-  await writeFile(__dirname + "/packageMarks.json", JSON.stringify(packageMarks, null, 2));
-  await writeFile(__dirname + "/packageMarks.bak.json", JSON.stringify(packageMarks, null, 2));
+  await writeFile(__dirname + "/../db/packageMarks.json", JSON.stringify(packageMarks, null, 2));
+  await writeFile(__dirname + "/../db/packageMarks.bak.json", JSON.stringify(packageMarks, null, 2));
 }
 
 function loadPackageStatus() {
   verb(loadPackageStatus);
   try {
-    packageStatus = require("./packageStatus.json");
+    packageStatus = require("../db/packageStatus.json");
   } catch(e) {
     try {
-      packageStatus = require("./packageStatus.bak.json");
+      packageStatus = require("../db/packageStatus.bak.json");
     } catch(e) {
       packageStatus = [];
       storePackageStatus();
@@ -127,10 +120,10 @@ loadPackageStatus();
 function loadPackageMarks() {
   verb(loadPackageMarks);
   try {
-    packageMarks = require("./packageMarks.json");
+    packageMarks = require("../db/packageMarks.json");
   } catch(e) {
     try {
-      packageMarks = require("./packageMarks.bak.json");
+      packageMarks = require("../db/packageMarks.bak.json");
     } catch(e) {
       packageMarks = [];
       storePackageMarks();
