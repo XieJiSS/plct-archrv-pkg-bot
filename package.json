@@ -1,8 +1,8 @@
 {
-  "name": "tg-bot-6",
+  "name": "plct-tg-bot",
   "version": "1.0.0",
   "description": "",
-  "main": "tg-6.js",
+  "main": "src/tg-6.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
