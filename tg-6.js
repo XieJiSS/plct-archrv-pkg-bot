@@ -517,7 +517,7 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 async function showMarkHelp(chatId) {
   await sendMessage(chatId, toSafeMd(`/mark 用法：\n/mark pkg status\n\n可用的 status 包括 ${
     Object.keys(localUtils.MARK2STR).join(", ")
-  }`));
+  }`), { parse_mode: "MarkdownV2" });
 }
 
 onText(/^\/status@?/, async (msg) => {
