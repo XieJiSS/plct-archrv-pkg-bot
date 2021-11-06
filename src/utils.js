@@ -261,7 +261,10 @@ function forceResplitLines(str, splitAt, inlineDelimiter = " ") {
   for(let i = 0; i < lines.length; i++) {
     result += lines[i];
     if((i + 1) % splitAt === 0) {
-      result += "\n";
+      // we don't add additional newlines at the end of `str`
+      if(i + 1 != lines.length) {
+        result += "\n";
+      }
     } else {
       result += inlineDelimiter;
     }
