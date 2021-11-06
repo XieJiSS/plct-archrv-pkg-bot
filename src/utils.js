@@ -1,4 +1,5 @@
 // @ts-check
+"use strict";
 
 const assert = require("assert");
 const crypto = require("crypto");
@@ -22,71 +23,27 @@ let packageMarks = [];
  * @type {Object<string, string>}
  */
 const MARK2STR = {
-  unknown: "unknown",
+  unknown: "特殊状态，请咨询认领人",
   upstreamed: "等待上游",
   outdated: "需要滚版本",
   outdated_dep: "需要滚依赖版本",
   stuck: "无进展",
   noqemu: "仅在板子上编译成功",
-  ready: "已经能够编译",
+  ready: "无需操作即可从上游编译",
   pending: "已修好但网页上状态仍为 FTBFS",
 };
-/**
- * @param {string[]} marks
- * @returns {string[]}
- */
-function marksToStringArr(marks) {
-  if(marks.length === 0) return [];
-  /**
-   * @type {string[]}
-   */
-  const result = [];
-  for(const mark of marks) {
-    if(mark in MARK2STR) {
-      result.push(`(#${mark} ${MARK2STR[mark]})`);
-    } else {
-      result.push(`(#${mark} ${MARK2STR["unknown"]})`);
-    }
-  }
-  return result;
-}
 
-const HELP_DISPLAY_SEC = 120;
-const MAX_SLEEP_TIME = 2147483647 - 60 * 1e3;  // to avoid TimeoutOverflowWarning, with redundancy
-let WILL_QUIT_SOON = false;
+const MAX_SLEEP_TIME = 2147483647;  // to avoid TimeoutOverflowWarning
 const TZ = +8;  // UTC+8
 
-
-/**
- * @type {string[][]}
- */
-const keywords = [];
-
-/**
- *
- * @param {string} kw
- * @param {string} resp
- */
-function registerKeyword(kw, resp) {
-  if(!kw) return;
-  keywords.push([kw, resp]);
-}
-
-/**
- *
- * @param {string[]} kwList
- * @param {string} resp
- */
-function registerKeywordList(kwList, resp) {
-  kwList.forEach((kw) => {
-    registerKeyword(kw, resp);
-  });
-}
 
 /**
  * @param {number} ms
  */
 function sleep(ms) {
+  if(ms > MAX_SLEEP_TIME) {
+    ms = MAX_SLEEP_TIME;
+  }
   return new Promise((res) => setTimeout(res, ms));
 }
 
@@ -252,6 +209,67 @@ async function cleanup(filePath, complain = true) {
 }
 
 /**
+ * @param {string[]} marks
+ * @returns {string[]}
+ */
+ function marksToStringArr(marks) {
+  if(marks.length === 0) return [];
+  /**
+   * @type {string[]}
+   */
+  const result = [];
+  for(const mark of marks) {
+    result.push(markToString(mark));
+  }
+  return result;
+}
+
+/**
+ * @param {string} mark
+ * @returns {string}
+ */
+ function markToString(mark) {
+  if(!mark) return `(# ${MARK2STR["unknown"]})`;
+  if(mark in MARK2STR && typeof MARK2STR[mark] === "string") {
+    return `(#${mark} ${MARK2STR[mark]})`;
+  } else {
+    return `(#${mark} ${MARK2STR["unknown"]})`;
+  }
+}
+
+/**
+ * @param {string} str
+ * @param {number} [tabSize]
+ */
+function addIndent(str, tabSize = 2) {
+  const lines = str.split(/\r?\n/);
+  for(let i = 0; i < lines.length; i++) {
+    if(!lines[i].trim()) continue;
+    lines[i] = " ".repeat(tabSize) + lines[i];
+  }
+  return lines.join("\n");
+}
+
+/**
+ * @param {string} str should be a multiple-line string
+ * @param {number} splitAt
+ * @param {string} [inlineDelimiter]
+ */
+function forceResplitLines(str, splitAt, inlineDelimiter = " ") {
+  const lines = str.split(/\r?\n/);
+  let result = "";
+  for(let i = 0; i < lines.length; i++) {
+    result += lines[i];
+    if((i + 1) % splitAt === 0) {
+      result += "\n";
+    } else {
+      result += inlineDelimiter;
+    }
+  }
+  return result;
+}
+
+/**
  * @param {any} symbol
  * @returns {string}
  */
@@ -292,16 +310,13 @@ function sha512hex(text) {
 }
 
 module.exports = {
-  HELP_DISPLAY_SEC,
-  MAX_SLEEP_TIME,
-  WILL_QUIT_SOON,
   MARK2STR,
-  keywords,
   packageStatus,
   packageMarks,
+  addIndent,
   marksToStringArr,
-  registerKeyword,
-  registerKeywordList,
+  markToString,
+  forceResplitLines,
   storePackageStatus,
   storePackageMarks,
   getTodayTimestamp,

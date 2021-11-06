@@ -2,7 +2,7 @@
   "name": "plct-tg-bot",
   "version": "1.0.0",
   "description": "",
-  "main": "src/tg-6.js",
+  "main": "src/plct-archrv-bot.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

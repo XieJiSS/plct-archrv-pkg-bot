@@ -12,13 +12,14 @@ const verb = require("./_verbose");
 const localUtils = require("./utils");
 
 const {
+  addIndent,
+  forceResplitLines,
   marksToStringArr,
+  markToString,
   getMentionLink,
   toSafeMd,
   toSafeCode,
   sleep,
-  kwd2regexp,
-  fullKwd2regexp,
   packageStatus,
   storePackageStatus,
   packageMarks,
@@ -285,13 +286,13 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   }
   storePackageStatus();
 
-  let marks = packageMarks.filter(pkg => pkg.name === newPackage);
-  if(marks.length && marks[0].marks.length) {
-    marks = marks[0].marks;
-    let statusStr = "";
-    statusStr += toSafeMd(marksToStringArr(marks).join("\n"));
-    statusStr += "\n\n";
-    await replyMessage(chatId, msgId, toSafeMd(`认领成功，但请注意该 package 有特殊状态:\n`)+statusStr+toSafeMd(`可以用 more 命令查看完整列表`), { parse_mode: "MarkdownV2" });
+  const packageMark = packageMarks.filter(pkg => pkg.name === newPackage)[0];
+  if(packageMark && packageMark.marks.length) {
+    const mark = packageMark.marks;
+    let markStatusStr = toSafeMd(`认领成功，但请注意该 package 有特殊状态：\n`);
+    markStatusStr += toSafeMd(marksToStringArr(mark).join("\n"));
+    markStatusStr += toSafeMd(`\n\n可以用 more 命令查看完整列表`);
+    await replyMessage(chatId, msgId, markStatusStr, { parse_mode: "MarkdownV2" });
   } else {
     await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
   }
@@ -404,7 +405,7 @@ onText(/^\/status@?/, async (msg) => {
   }
 
   statusStr = statusStr || toSafeMd("(empty)");
-  statusStr += "\n可以通过 add 和 merge 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。";
+  statusStr += toSafeMd("\n可以通过 add 和 merge 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。");
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
@@ -415,35 +416,49 @@ onText(/^\/more@?/, async (msg) => {
 
   verb("trying to show mark status...");
 
-  let statusStr = "";
-  let eachMark = new Map();
+  /**
+   * @type {Map<string, string[]>}
+   */
+  const markToPkgsMap = new Map();
+  let multipleMarkStatusStr = "";
+  
   for(const pkg of packageMarks) {
     if(pkg.marks.length === 0) continue;
-    marksToStringArr(pkg.marks).forEach((mark) => {
-      if(!eachMark.has(mark)) {
-        eachMark.set(mark, []);
+    pkg.marks.forEach((mark) => {
+      if(!markToPkgsMap.has(mark)) {
+        markToPkgsMap.set(mark, []);
       }
-      eachMark.get(mark).push(pkg.name);
+      markToPkgsMap.get(mark).push(pkg.name);
     });
+    
     if(pkg.marks.length === 1) continue;
-    statusStr = statusStr || "同时具有多个状态的包:\n\n";
-    statusStr += "`" + toSafeCode(pkg.name) + "`";
-    statusStr += toSafeMd(":\n");
-    statusStr += toSafeMd(marksToStringArr(pkg.marks).join("\n"));
-    statusStr += "\n\n";
+    
+    multipleMarkStatusStr += "`" + toSafeCode(pkg.name) + "`";
+    multipleMarkStatusStr += toSafeMd(":\n");
+    multipleMarkStatusStr += toSafeMd(marksToStringArr(pkg.marks).join("\n"));
+    multipleMarkStatusStr += "\n\n";
   }
 
-  let marksStr = "";
-  eachMark.forEach((namesArr, mark) => {
-    marksStr += toSafeMd(mark);
-    marksStr += toSafeMd(":\n");
-    marksStr += "`" + toSafeCode(namesArr.join(" ")) + "`";
-    marksStr += "\n\n";
+  let singleMarkStatusStr = "";
+  markToPkgsMap.forEach((namesArr, mark) => {
+    singleMarkStatusStr += toSafeMd(markToString(mark));
+    singleMarkStatusStr += toSafeMd(":\n");
+    singleMarkStatusStr += addIndent("`" + toSafeCode(forceResplitLines(namesArr.join("`\n`"), 2, " ")) + "`", 2);
+    singleMarkStatusStr += "\n\n";
   });
-  statusStr = marksStr + statusStr;
+
+  if(!multipleMarkStatusStr) {
+    if(singleMarkStatusStr) {
+      multipleMarkStatusStr = toSafeMd("具有多个状态的包：\n\n(empty)");
+    }
+  } else {
+    multipleMarkStatusStr = toSafeMd("具有多个状态的包：\n\n") + multipleMarkStatusStr;
+  }
+
+  let statusStr = singleMarkStatusStr + multipleMarkStatusStr;
 
   statusStr = statusStr || toSafeMd("(empty)");
-  statusStr += "\n可以使用 mark 和 unmark 命令来维护此列表。";
+  statusStr += toSafeMd("\n可以使用 mark 和 unmark 命令来维护此列表。");
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });

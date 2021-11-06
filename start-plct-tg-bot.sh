@@ -1,2 +1,2 @@
 # You may change to use pm2
-nohup node ./src/tg-6.js --verb 1>>./log.log 2>&1 &
+nohup node ./src/plct-archrv-bot.js --verb 1>>./log.log 2>&1 &
