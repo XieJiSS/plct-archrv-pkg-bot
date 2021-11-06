@@ -1,7 +1,7 @@
 /* eslint-disable no-case-declarations */
 "use strict";
 
-require('dotenv').config();
+require("dotenv").config();
 
 const TelegramBot = require("node-telegram-bot-api");
 const { inspect } = require("util");
