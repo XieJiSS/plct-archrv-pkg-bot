@@ -443,7 +443,7 @@ onText(/^\/more@?/, async (msg) => {
   markToPkgsMap.forEach((namesArr, mark) => {
     singleMarkStatusStr += toSafeMd(markToString(mark));
     singleMarkStatusStr += toSafeMd(":\n");
-    singleMarkStatusStr += addIndent("`" + toSafeCode(forceResplitLines(namesArr.join("`\n`"), 2, " ")) + "`", 2);
+    singleMarkStatusStr += addIndent("`" + forceResplitLines(namesArr.map(toSafeCode).join("`\n`"), 2, " ") + "`", 2);
     singleMarkStatusStr += "\n\n";
   });
 
