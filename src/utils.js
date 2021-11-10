@@ -344,11 +344,12 @@ function markToString(mark) {
  * @returns {string} MarkdownV2-safe string
  */
 function markToStringWithSource(mark) {
-  if(!mark.name) return _safemd`(# ${toSafeMd(MARK2STR["unknown"])} by ${mark.by.url})`;
+  const url = mark.by ? mark.by.url : "unknown user";
+  if(!mark.name) return _safemd`(# ${toSafeMd(MARK2STR["unknown"])} by ${url})`;
   if(mark.name in MARK2STR && typeof MARK2STR[mark.name] === "string") {
-    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR[mark.name])}) by ${mark.by.url}`;
+    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR[mark.name])}) by ${url}`;
   } else {
-    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR["unknown"])} by ${mark.by.url})`;
+    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR["unknown"])} by ${url})`;
   }
 }
 
