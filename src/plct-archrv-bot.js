@@ -27,6 +27,8 @@ const {
   storePackageStatus,
   packageMarks,
   storePackageMarks,
+  stripPackageStatus,
+  stripPackageMarks,
 } = localUtils;
 
 // replace the value below with the Telegram token you receive from @BotFather
@@ -428,7 +430,7 @@ onText(/^\/more@?/, async (msg) => {
    * @type {Map<string, { pkgName: string; by: {
     url: string;
     uid: number;
-    alias: string | null;
+    alias: string;
   } | null; }[]>}
    */
   const markToPkgsMap = new Map();
@@ -483,3 +485,24 @@ bot.on("message", (msg) => {
     verb("got command from", msg.chat.title || msg.chat.id, msg.text);
   }
 });
+
+const http = require("http");
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  switch(url.pathname) {
+    case "/pkg":
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      const data = {
+        workList: stripPackageStatus(packageStatus),
+        markList: stripPackageMarks(packageMarks),
+      };
+      res.end(JSON.stringify(data));
+      break;
+    default:
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end("Not Found");
+  }
+});
+
+server.listen(30644);

@@ -15,17 +15,17 @@ const verb = require("./_verbose");
  */
 let packageStatus = [];
 /**
- * @type {{
+ * @type { {
     name: string;
     marks: {
       name: string;
       by: {
         url: string;
         uid: number;
-        alias: string | null;
+        alias: string;
       } | null;
     }[];
-  }[]}
+  }[] }
  */
 let packageMarks = [];
 
@@ -112,7 +112,7 @@ loadPackageMarks();
       by: {
         url: string;
         uid: number;
-        alias: string | null;
+        alias: string;
       } | null;
     }[];
   }[]} oldPackageMarks
@@ -125,7 +125,7 @@ function _updatePackageMarkSchema(oldPackageMarks) {
         by: {
           url: string;
           uid: number;
-          alias: string | null;
+          alias: string;
         } | null;
       }[]; }}
      */
@@ -306,7 +306,7 @@ async function cleanup(filePath, complain = true) {
  * @param {{ name: string; by: {
     url: string;
     uid: number;
-    alias: string | null;
+    alias: string;
   } | null; }[]} marks
  * @returns {string[]}
  */
@@ -339,7 +339,7 @@ function markToString(mark) {
  * @param {{ name: string; by: {
     url: string;
     uid: number;
-    alias: string | null;
+    alias: string;
   } | null; }} mark
  * @returns {string} MarkdownV2-safe string
  */
@@ -427,6 +427,66 @@ function fullKwd2regexp(keywords, flags = "i") {
   return new RegExp(`^(${keywords.join("|")})$`, flags);
 }
 
+/**
+ * @param {{ userid: number; username: string | undefined; packages: string[]; }[]} status
+ */
+function stripPackageStatus(status) {
+  /**
+   * @type {{ alias: string; packages: string[]; }[]}
+   */
+  const ret = [];
+  for(const user of status) {
+    ret.push({
+      alias: getAlias(user.userid),
+      packages: user.packages,
+    });
+  }
+  return ret;
+}
+
+/**
+ * @param { {
+    name: string;
+    marks: {
+      name: string;
+      by: {
+        url: string;
+        uid: number;
+        alias: string;
+      } | null;
+    }[];
+  }[] } status
+ */
+function stripPackageMarks(status) {
+  /**
+   * @type { {
+    name: string;
+    marks: {
+      name: string;
+      by: {
+        alias: string;
+      } | null;
+    }[];
+  }[] }
+   */
+  const ret = [];
+  for(const pkg of status) {
+    ret.push({
+      name: pkg.name,
+      marks: pkg.marks.map(mark => {
+        const strippedMark = {
+          name: mark.name,
+          by: {
+            alias: mark.by ? mark.by.alias : "null"
+          }
+        };
+        return strippedMark;
+      }),
+    });
+  }
+  return ret;
+}
+
 module.exports = {
   MARK2STR,
   packageStatus,
@@ -453,4 +513,6 @@ module.exports = {
   type,
   kwd2regexp,
   fullKwd2regexp,
+  stripPackageStatus,
+  stripPackageMarks,
 };
