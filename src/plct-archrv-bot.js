@@ -458,7 +458,7 @@ onText(/^\/more@?/, async (msg) => {
     singleMarkStatusStr += markToString(markName);
     singleMarkStatusStr += toSafeMd(":\n");
     singleMarkStatusStr += addIndent(forceResplitLines(marksArr.map(mark => {
-      return `\`${toSafeCode(mark.pkgName)}\` by ${mark.by ? mark.by.url : "null"}`
+      return `\`${toSafeCode(mark.pkgName)}\` by ${mark.by ? toSafeCode(mark.by.alias) : "null"}`
     }).join("\n"), 1, " "), 2);
     singleMarkStatusStr += "\n\n";
   });
