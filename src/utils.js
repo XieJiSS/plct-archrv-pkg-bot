@@ -4,7 +4,6 @@
 const assert = require("assert");
 const crypto = require("crypto");
 const fs = require("fs");
-const path = require("path");
 const { promisify } = require("util");
 const unlink = promisify(fs.unlink);
 const writeFile = promisify(fs.writeFile);
@@ -16,9 +15,25 @@ const verb = require("./_verbose");
  */
 let packageStatus = [];
 /**
- * @type {{ name: string; marks: string[]; }[]}
+ * @type {{
+    name: string;
+    marks: {
+      name: string;
+      by: {
+        url: string;
+        uid: number;
+        alias: string | null;
+      } | null;
+    }[];
+  }[]}
  */
 let packageMarks = [];
+
+/**
+ * @type {Object<string, string | undefined>}
+ */
+let alias = {};
+
 /**
  * @type {Object<string, string>}
  */
@@ -77,10 +92,10 @@ loadPackageStatus();
 function loadPackageMarks() {
   verb(loadPackageMarks);
   try {
-    packageMarks = require("../db/packageMarks.json");
+    packageMarks = _updatePackageMarkSchema(require("../db/packageMarks.json"));
   } catch(e) {
     try {
-      packageMarks = require("../db/packageMarks.bak.json");
+      packageMarks = _updatePackageMarkSchema(require("../db/packageMarks.bak.json"));
     } catch(e) {
       packageMarks = [];
       storePackageMarks();
@@ -88,6 +103,67 @@ function loadPackageMarks() {
   }
 }
 loadPackageMarks();
+
+/**
+ * @param {{
+    name: string;
+    marks: string[] | {
+      name: string;
+      by: {
+        url: string;
+        uid: number;
+        alias: string | null;
+      } | null;
+    }[];
+  }[]} oldPackageMarks
+ */
+function _updatePackageMarkSchema(oldPackageMarks) {
+  return oldPackageMarks.map(oldPackageMark => {
+    /**
+     * @type {{ name: string; marks: {
+        name: string;
+        by: {
+          url: string;
+          uid: number;
+          alias: string | null;
+        } | null;
+      }[]; }}
+     */
+    const ret = { name: oldPackageMark.name, marks: [] };
+    const marks = oldPackageMark.marks;
+    for(const mark of marks) {
+      if(typeof mark === "string") {
+        ret.marks.push({ name: mark, by: null });
+      } else {
+        ret.marks.push(mark);
+      }
+    }
+    return ret;
+  });
+}
+
+function loadAlias() {
+  verb(loadAlias);
+  try {
+    alias = require("../config/alias.json");
+  } catch(e) {
+    alias = {};
+  }
+}
+loadAlias();
+
+/**
+ * @param {number} uid
+ */
+function getAlias(uid) {
+  if(typeof uid !== "number") {
+    return "invalid uid";
+  }
+  if(typeof alias[uid] === "string") {
+    return alias[uid];
+  }
+  return "uid=" + uid;
+}
 
 function getTodayTimestamp() {
   const now = Date.now();
@@ -141,7 +217,7 @@ function getMentionLink(uid, username, firstName = "", lastName = "", tag = fals
  * @param {any[][]} arr
  * @returns {[number, number]}
  */
- function getArrayXYSize(arr) {
+function getArrayXYSize(arr) {
   const sizeX = arr.length;
   let sizeY;
   for(const elem of arr) {
@@ -165,6 +241,24 @@ function toSafeMd(unsafeMd) {
   // see https://core.telegram.org/bots/api#markdownv2-style
   // eslint-disable-next-line no-useless-escape
   return unsafeMd.replace(/([[\]()_*~`>#+\-=|{}\.!\\])/g, "\\$1");
+}
+
+/**
+ * @param {TemplateStringsArray} unsafeMdArr unsafe markdown v2 texts
+ * @param {any[]} safeMdArr
+ */
+function _safemd(unsafeMdArr, ...safeMdArr) {
+  safeMdArr = safeMdArr.map(safeMd => String(safeMd));
+  // see https://core.telegram.org/bots/api#markdownv2-style
+  // eslint-disable-next-line no-useless-escape
+  const escapedMdArr = unsafeMdArr.map(unsafeMd => unsafeMd.replace(/([[\]()_*~`>#+\-=|{}\.!\\])/g, "\\$1"));
+  let result = "";
+  for(let i = 0; i < safeMdArr.length; i++) {
+    result += escapedMdArr[i];
+    result += safeMdArr[i];
+  }
+  result += escapedMdArr[escapedMdArr.length - 1];
+  return result;
 }
 
 /**
@@ -209,17 +303,21 @@ async function cleanup(filePath, complain = true) {
 }
 
 /**
- * @param {string[]} marks
+ * @param {{ name: string; by: {
+    url: string;
+    uid: number;
+    alias: string | null;
+  } | null; }[]} marks
  * @returns {string[]}
  */
- function marksToStringArr(marks) {
+function marksToStringArr(marks) {
   if(marks.length === 0) return [];
   /**
    * @type {string[]}
    */
   const result = [];
   for(const mark of marks) {
-    result.push(markToString(mark));
+    result.push(markToStringWithSource(mark));
   }
   return result;
 }
@@ -228,12 +326,29 @@ async function cleanup(filePath, complain = true) {
  * @param {string} mark
  * @returns {string}
  */
- function markToString(mark) {
+function markToString(mark) {
   if(!mark) return `(# ${MARK2STR["unknown"]})`;
   if(mark in MARK2STR && typeof MARK2STR[mark] === "string") {
     return `(#${mark} ${MARK2STR[mark]})`;
   } else {
     return `(#${mark} ${MARK2STR["unknown"]})`;
+  }
+}
+
+/**
+ * @param {{ name: string; by: {
+    url: string;
+    uid: number;
+    alias: string | null;
+  } | null; }} mark
+ * @returns {string} MarkdownV2-safe string
+ */
+function markToStringWithSource(mark) {
+  if(!mark.name) return _safemd`(# ${toSafeMd(MARK2STR["unknown"])} by ${mark.by.url})`;
+  if(mark.name in MARK2STR && typeof MARK2STR[mark.name] === "string") {
+    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR[mark.name])}) by ${mark.by.url}`;
+  } else {
+    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR["unknown"])} by ${mark.by.url})`;
   }
 }
 
@@ -294,7 +409,7 @@ function sha512hex(text) {
  * @description 注意！keywords 不会被 escape，不要有特殊字符
  * @param {string[]} keywords
  */
- function kwd2regexp(keywords, flags = "i") {
+function kwd2regexp(keywords, flags = "i") {
   for(const keyword of keywords) {
     assert(/^[a-z0-9\u4e00-\u9FFF\u3400-\u4dbf\u{20000}-\u{2a6df}\u{2a700}-\u{2b73f}\u{2b740}-\u{2b81f}\u{2b820}-\u{2ceaf}\uf900-\ufaff\u3300-\u33ff\ufe30-\ufe4f\uf900-\ufaff\u{2f800}-\u{2fa1f}，《》\.\+]+$/iu.test(keyword));
   }
@@ -305,7 +420,7 @@ function sha512hex(text) {
  * @description 注意！keywords 不会被 escape，不要有特殊字符
  * @param {string[]} keywords
  */
- function fullKwd2regexp(keywords, flags = "i") {
+function fullKwd2regexp(keywords, flags = "i") {
   for(const keyword of keywords) {
     assert(/^[a-z0-9\u4e00-\u9FFF\u3400-\u4dbf\u{20000}-\u{2a6df}\u{2a700}-\u{2b73f}\u{2b740}-\u{2b81f}\u{2b820}-\u{2ceaf}\uf900-\ufaff\u3300-\u33ff\ufe30-\ufe4f\uf900-\ufaff\u{2f800}-\u{2fa1f}，《》]+$/iu.test(keyword));
   }
@@ -316,13 +431,16 @@ module.exports = {
   MARK2STR,
   packageStatus,
   packageMarks,
+  _safemd,
   addIndent,
   marksToStringArr,
   markToString,
+  markToStringWithSource,
   forceResplitLines,
   storePackageStatus,
   storePackageMarks,
   getTodayTimestamp,
+  getAlias,
   getMsgLink,
   getMentionLink,
   getArrayXYSize,

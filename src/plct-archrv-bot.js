@@ -1,7 +1,9 @@
 /* eslint-disable no-case-declarations */
 "use strict";
 
-require("dotenv").config();
+require("dotenv").config({
+  path: "./config/.env",
+});
 
 const TelegramBot = require("node-telegram-bot-api");
 const { inspect } = require("util");
@@ -14,6 +16,7 @@ const localUtils = require("./utils");
 const {
   addIndent,
   forceResplitLines,
+  getAlias,
   marksToStringArr,
   markToString,
   getMentionLink,
@@ -288,9 +291,9 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
 
   const packageMark = packageMarks.filter(pkg => pkg.name === newPackage)[0];
   if(packageMark && packageMark.marks.length) {
-    const mark = packageMark.marks;
+    const marks = packageMark.marks;
     let markStatusStr = toSafeMd(`认领成功，但请注意该 package 有特殊状态：\n`);
-    markStatusStr += toSafeMd(marksToStringArr(mark).join("\n"));
+    markStatusStr += marksToStringArr(marks).join("\n");
     markStatusStr += toSafeMd(`\n\n可以用 more 命令查看完整列表`);
     await replyMessage(chatId, msgId, markStatusStr, { parse_mode: "MarkdownV2" });
   } else {
@@ -328,25 +331,28 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
 onText(/^\/mark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
+  const userId = msg.from.id;
   const pkg = match[1];
   const mark = match[2];
-
+  
   verb("trying to mark", pkg, "as", mark);
-
+  
   if(!Object.keys(localUtils.MARK2STR).includes(mark)) {
     return await showMarkHelp(chatId);
   }
+  
+  const mentionLink = getMentionLink(msg.from.id, null, msg.from.first_name, msg.from.last_name, false);
 
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
-    if(!target.marks.includes(mark)) {
-      target.marks.push(mark);
-      target.marks.sort();
+    if(!target.marks.some(markObj => markObj.name === mark)) {
+      target.marks.push({ name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) } });
+      target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
     }
   } else {
     packageMarks.push({
       name: pkg,
-      marks: [ mark ],
+      marks: [ { name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) }} ],
     });
   }
   storePackageMarks();
@@ -369,8 +375,9 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
-    if(target.marks.includes(mark)) {
-      target.marks = target.marks.filter(str => str !== mark).sort();
+    if(target.marks.some(markObj => markObj.name === mark)) {
+      target.marks = target.marks.filter(markObj => markObj.name !== mark);
+      target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
       storePackageMarks();
       return await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
     } else {
@@ -418,7 +425,11 @@ onText(/^\/more@?/, async (msg) => {
   verb("trying to show mark status...");
 
   /**
-   * @type {Map<string, string[]>}
+   * @type {Map<string, { pkgName: string; by: {
+    url: string;
+    uid: number;
+    alias: string | null;
+  } | null; }[]>}
    */
   const markToPkgsMap = new Map();
   let multipleMarkStatusStr = "";
@@ -426,25 +437,27 @@ onText(/^\/more@?/, async (msg) => {
   for(const pkg of packageMarks) {
     if(pkg.marks.length === 0) continue;
     pkg.marks.forEach((mark) => {
-      if(!markToPkgsMap.has(mark)) {
-        markToPkgsMap.set(mark, []);
+      if(!markToPkgsMap.has(mark.name)) {
+        markToPkgsMap.set(mark.name, []);
       }
-      markToPkgsMap.get(mark).push(pkg.name);
+      markToPkgsMap.get(mark.name).push({ pkgName: pkg.name, by: mark.by });
     });
     
     if(pkg.marks.length === 1) continue;
     
     multipleMarkStatusStr += "`" + toSafeCode(pkg.name) + "`";
     multipleMarkStatusStr += toSafeMd(":\n");
-    multipleMarkStatusStr += toSafeMd(marksToStringArr(pkg.marks).join("\n"));
+    multipleMarkStatusStr += marksToStringArr(pkg.marks).join("\n");
     multipleMarkStatusStr += "\n\n";
   }
 
   let singleMarkStatusStr = "";
-  markToPkgsMap.forEach((namesArr, mark) => {
-    singleMarkStatusStr += toSafeMd(markToString(mark));
+  markToPkgsMap.forEach((marksArr, markName) => {
+    singleMarkStatusStr += markToString(markName);
     singleMarkStatusStr += toSafeMd(":\n");
-    singleMarkStatusStr += addIndent("`" + forceResplitLines(namesArr.map(toSafeCode).join("`\n`"), 2, " ") + "`", 2);
+    singleMarkStatusStr += addIndent(forceResplitLines(marksArr.map(mark => {
+      return `\`${toSafeCode(mark.pkgName)}\` by ${mark.by}`
+    }).join("\n"), 1, " "), 2);
     singleMarkStatusStr += "\n\n";
   });
 
