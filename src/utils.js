@@ -327,11 +327,11 @@ function marksToStringArr(marks) {
  * @returns {string}
  */
 function markToString(mark) {
-  if(!mark) return `(# ${MARK2STR["unknown"]})`;
+  if(!mark) return toSafeMd(`(# ${MARK2STR["unknown"]})`);
   if(mark in MARK2STR && typeof MARK2STR[mark] === "string") {
-    return `(#${mark} ${MARK2STR[mark]})`;
+    return toSafeMd(`(#${mark} ${MARK2STR[mark]})`);
   } else {
-    return `(#${mark} ${MARK2STR["unknown"]})`;
+    return toSafeMd(`(#${mark} ${MARK2STR["unknown"]})`);
   }
 }
 
