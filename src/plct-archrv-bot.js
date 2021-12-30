@@ -303,7 +303,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   }
 });
 
-onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
+onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const mergedPackage = match[1];
@@ -330,12 +330,13 @@ onText(/^\/merge\s+(\S+)$/, async (msg, match) => {
   await replyMessage(chatId, msgId, toSafeMd(`你还没有认领任何 package`));
 });
 
-onText(/^\/mark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
+onText(/^\/mark\s+(\S+)\s+(\S+)(\s+\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const userId = msg.from.id;
   const pkg = match[1];
   const mark = match[2];
+  const comment = match[3] ? match[3].trim() : "";
   
   verb("trying to mark", pkg, "as", mark);
   
@@ -348,13 +349,13 @@ onText(/^\/mark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(!target.marks.some(markObj => markObj.name === mark)) {
-      target.marks.push({ name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) } });
+      target.marks.push({ name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) }, comment });
       target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
     }
   } else {
     packageMarks.push({
       name: pkg,
-      marks: [ { name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) }} ],
+      marks: [ { name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) }, comment } ],
     });
   }
   storePackageMarks();
@@ -394,7 +395,7 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
  * @param {number} chatId
  */
 async function showMarkHelp(chatId) {
-  await sendMessage(chatId, toSafeMd(`/mark 用法：\n/mark pkg status\n\n可用的 status 包括 ${
+  await sendMessage(chatId, toSafeMd(`/mark 用法：\n/mark pkg status [comment]\n\n可用的 status 包括 ${
     Object.keys(localUtils.MARK2STR).join(", ")
   }`), { parse_mode: "MarkdownV2" });
 }
@@ -415,7 +416,7 @@ onText(/^\/status@?/, async (msg) => {
   }
 
   statusStr = statusStr || toSafeMd("(empty)");
-  statusStr += toSafeMd("\n可以通过 add 和 merge 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。");
+  statusStr += toSafeMd("\n可以通过 add，merge 和 drop 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。");
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
@@ -431,7 +432,7 @@ onText(/^\/more@?/, async (msg) => {
     url: string;
     uid: number;
     alias: string;
-  } | null; }[]>}
+  } | null; comment: string; }[]>}
    */
   const markToPkgsMap = new Map();
   let multipleMarkStatusStr = "";
@@ -442,7 +443,7 @@ onText(/^\/more@?/, async (msg) => {
       if(!markToPkgsMap.has(mark.name)) {
         markToPkgsMap.set(mark.name, []);
       }
-      markToPkgsMap.get(mark.name).push({ pkgName: pkg.name, by: mark.by });
+      markToPkgsMap.get(mark.name).push({ pkgName: pkg.name, by: mark.by, comment: mark.comment });
     });
     
     if(pkg.marks.length === 1) continue;
@@ -458,7 +459,7 @@ onText(/^\/more@?/, async (msg) => {
     singleMarkStatusStr += markToString(markName);
     singleMarkStatusStr += toSafeMd(":\n");
     singleMarkStatusStr += addIndent(forceResplitLines(marksArr.map(mark => {
-      return `\`${toSafeCode(mark.pkgName)}\` by ${mark.by ? toSafeMd(mark.by.alias) : "null"}`
+      return `\`${toSafeCode(mark.pkgName)}\` ${toSafeMd(`(${mark.comment || "no comment"})`)} by ${mark.by ? toSafeMd(mark.by.alias) : "null"}`
     }).join("\n"), 1, " "), 2);
     singleMarkStatusStr += "\n\n";
   });

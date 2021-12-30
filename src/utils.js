@@ -24,6 +24,7 @@ let packageStatus = [];
         uid: number;
         alias: string;
       } | null;
+      comment: string;
     }[];
   }[] }
  */
@@ -45,7 +46,8 @@ const MARK2STR = {
   stuck: "无进展",
   noqemu: "仅在板子上编译成功",
   ready: "无需操作即可从上游编译",
-  pending: "已修好但网页上状态仍为 FTBFS",
+  ignore: "不适用于 riscv64",
+  missing_dep: "缺依赖",
 };
 
 const MAX_SLEEP_TIME = 2147483647;  // to avoid TimeoutOverflowWarning
@@ -114,6 +116,7 @@ loadPackageMarks();
         uid: number;
         alias: string;
       } | null;
+      comment: string;
     }[];
   }[]} oldPackageMarks
  */
@@ -127,13 +130,17 @@ function _updatePackageMarkSchema(oldPackageMarks) {
           uid: number;
           alias: string;
         } | null;
+        comment: string;
       }[]; }}
      */
     const ret = { name: oldPackageMark.name, marks: [] };
     const marks = oldPackageMark.marks;
     for(const mark of marks) {
       if(typeof mark === "string") {
-        ret.marks.push({ name: mark, by: null });
+        ret.marks.push({ name: mark, by: null, comment: "" });
+      } else if(typeof mark.comment !== "string") {
+        mark.comment = "";
+        ret.marks.push(mark);
       } else {
         ret.marks.push(mark);
       }
@@ -307,7 +314,7 @@ async function cleanup(filePath, complain = true) {
     url: string;
     uid: number;
     alias: string;
-  } | null; }[]} marks
+  } | null; comment: string; }[]} marks
  * @returns {string[]}
  */
 function marksToStringArr(marks) {
@@ -340,16 +347,17 @@ function markToString(mark) {
     url: string;
     uid: number;
     alias: string;
-  } | null; }} mark
+  } | null; comment: string; }} mark
  * @returns {string} MarkdownV2-safe string
  */
 function markToStringWithSource(mark) {
   const alias = mark.by ? toSafeMd(mark.by.alias) : "null";
+  const safeComment = mark.comment ? toSafeMd(" “" + mark.comment + "”") : "";
   if(!mark.name) return _safemd`(# ${toSafeMd(MARK2STR["unknown"])} by ${alias})`;
   if(mark.name in MARK2STR && typeof MARK2STR[mark.name] === "string") {
-    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR[mark.name])}) by ${alias}`;
+    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR[mark.name])}${safeComment} by ${alias})`;
   } else {
-    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR["unknown"])} by ${alias})`;
+    return _safemd`(#${toSafeMd(mark.name)} ${toSafeMd(MARK2STR["unknown"])}${safeComment} by ${alias})`;
   }
 }
 
@@ -455,6 +463,7 @@ function stripPackageStatus(status) {
         uid: number;
         alias: string;
       } | null;
+      comment: string;
     }[];
   }[] } status
  */
@@ -466,7 +475,8 @@ function stripPackageMarks(status) {
       name: string;
       by: {
         alias: string;
-      } | null;
+      };
+      comment: string;
     }[];
   }[] }
    */
@@ -479,7 +489,8 @@ function stripPackageMarks(status) {
           name: mark.name,
           by: {
             alias: mark.by ? mark.by.alias : "null"
-          }
+          },
+          comment: mark.comment,
         };
         return strippedMark;
       }),
