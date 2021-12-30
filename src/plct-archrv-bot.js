@@ -331,7 +331,7 @@ onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
   await replyMessage(chatId, msgId, toSafeMd(`你还没有认领任何 package`));
 });
 
-const MARK_REGEXP = /^\/mark\s+(\S+)\s+(\S+)(\s+[\S\s]+)$/;
+const MARK_REGEXP = /^\/mark\s+(\S+)\s+(\S+)(\s+[\S\s]+)?$/;
 
 onText(MARK_REGEXP, async (msg, match) => {
   const chatId = msg.chat.id;
