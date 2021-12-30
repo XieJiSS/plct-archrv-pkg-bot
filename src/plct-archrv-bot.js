@@ -23,6 +23,7 @@ const {
   toSafeMd,
   toSafeCode,
   sleep,
+  strcmp,
   packageStatus,
   storePackageStatus,
   packageMarks,
@@ -359,6 +360,7 @@ onText(MARK_REGEXP, async (msg, match) => {
       name: pkg,
       marks: [ { name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) }, comment } ],
     });
+    packageMarks.sort((pkg1, pkg2) => strcmp(pkg1.name, pkg2.name));
   }
   storePackageMarks();
   await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
@@ -458,11 +460,14 @@ onText(/^\/more@?/, async (msg) => {
 
   let singleMarkStatusStr = "";
   markToPkgsMap.forEach((marksArr, markName) => {
+    const oneStatusPerLineStr = marksArr.sort((mark1, mark2) => strcmp(mark1.pkgName, mark2.pkgName)).map(mark => {
+      const safeDisplayComment = mark.comment ? toSafeMd(`(${mark.comment})`) : "";
+      return `\`${toSafeCode(mark.pkgName)}\`${safeDisplayComment} by ${mark.by ? toSafeMd(mark.by.alias) : "null"}`
+    }).join("\n");
     singleMarkStatusStr += markToString(markName);
     singleMarkStatusStr += toSafeMd(":\n");
-    singleMarkStatusStr += addIndent(forceResplitLines(marksArr.map(mark => {
-      return `\`${toSafeCode(mark.pkgName)}\` ${toSafeMd(`(${mark.comment || "no comment"})`)} by ${mark.by ? toSafeMd(mark.by.alias) : "null"}`
-    }).join("\n"), 1, " "), 2);
+    // maybe we can have 2 status per line in the future?
+    singleMarkStatusStr += addIndent(forceResplitLines(oneStatusPerLineStr, 1, " "), 2);
     singleMarkStatusStr += "\n\n";
   });
 

@@ -405,6 +405,17 @@ function type(symbol) {
 }
 
 /**
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+function strcmp(a, b) {
+  if(a < b) return -1;
+  else if(a > b) return 1;
+  return 0;
+}
+
+/**
  * @param {string} text
  */
 function sha512hex(text) {
@@ -523,6 +534,7 @@ module.exports = {
   cleanup,
   sleep,
   type,
+  strcmp,
   kwd2regexp,
   fullKwd2regexp,
   stripPackageStatus,
