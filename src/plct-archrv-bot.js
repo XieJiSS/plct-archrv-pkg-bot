@@ -354,6 +354,13 @@ onText(MARK_REGEXP, async (msg, match) => {
     if(!target.marks.some(markObj => markObj.name === mark)) {
       target.marks.push({ name: mark, by: { url: mentionLink, uid: userId, alias: getAlias(userId) }, comment });
       target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
+    } else {
+      const markIndex = target.marks.findIndex(markObj => markObj.name === mark);
+      target.marks[markIndex] = {
+        name: mark,
+        by: { url: mentionLink, uid: userId, alias: getAlias(userId) },
+        comment
+      };
     }
   } else {
     packageMarks.push({
