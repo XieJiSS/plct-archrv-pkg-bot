@@ -277,7 +277,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   verb("trying to add", newPackage);
 
   if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === newPackage)).length) {
-    await replyMessage(chatId, msgId, toSafeMd(`这个 package 已被认领`));
+    await replyMessage(chatId, msgId, toSafeMd(`认领失败，这个 package 已被其他人认领`));
     return;
   }
 
