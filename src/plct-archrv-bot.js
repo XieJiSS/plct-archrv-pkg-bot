@@ -546,11 +546,15 @@ const server = http.createServer((req, res) => {
       if(status === "ftbfs") {
         const userId = localUtils.findUserIdByPackage(pkgname);
         if(userId === null) return;
-        const link = getMentionLink(userId);
-        sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + "已出包")}`);
+        const link = getMentionLink(userId, null, "认领人");
+        sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
+          parse_mode: "MarkdownV2",
+        });
         merge(pkgname, userId, async (success, reason) => {
           if(!success) {
-            await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`));
+            await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
+              parse_mode: "MarkdownV2",
+            });
           }
         });
       }
