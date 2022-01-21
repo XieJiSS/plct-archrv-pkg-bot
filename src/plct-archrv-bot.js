@@ -545,7 +545,10 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       if(status === "ftbfs") {
         const userId = localUtils.findUserIdByPackage(pkgname);
-        if(userId === null) return;
+        if(userId === null) {
+          res.end("Package Not Found");
+          break;
+        }
         const link = getMentionLink(userId, null, "认领人");
         sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
           parse_mode: "MarkdownV2",
