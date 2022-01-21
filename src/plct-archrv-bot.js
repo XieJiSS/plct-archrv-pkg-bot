@@ -33,7 +33,7 @@ const {
 } = localUtils;
 
 // replace the value below with the Telegram token you receive from @BotFather
-let token = process.env["PLCT_BOT_TOKEN"];
+const token = process.env["PLCT_BOT_TOKEN"];
 
 /**
  * @template T
@@ -42,7 +42,7 @@ let token = process.env["PLCT_BOT_TOKEN"];
  * @returns {T[]}
  */
 // @ts-ignore
-Array.prototype.remove = function(value) {
+Array.prototype.remove = function (value) {
   if(typeof this !== "object" || typeof this.length !== "number") {
     throw new TypeError("Array.prototype.remove should only be invoked on arrays.");
   }
@@ -58,6 +58,8 @@ Array.prototype.remove = function(value) {
 
 const bot = new TelegramBot(token, { polling: true });
 const ADMIN_ID = Number(process.env["PLCT_BOT_ADMIN_USERID"]);
+const CHAT_ID = process.env["PLCT_CHAT_ID"];
+const HTTP_API_TOKEN = process.env["PLCT_HTTP_API_TOKEN"];
 
 //  --------- initialize cache ends ----------- //
 
@@ -85,7 +87,7 @@ function onText(regexp, cb) {
    */
   function wrappedCallback(msg, match) {
     if(!msg.text) return;
-    if(/^\/[a-zA-Z0-9_]+?@[^\s]/.test(msg.text)) {
+    if(/^\/[a-zA-Z0-9_]+?@[\S]/.test(msg.text)) {
       let botName = msg.text.replace(/^\/[a-zA-Z0-9_]+?@/, "").toLowerCase();
       if(/^[a-zA-Z0-9_]+? /.test(botName)) {
         botName = botName.split(" ", 2)[0];
@@ -99,7 +101,6 @@ function onText(regexp, cb) {
     return cb(msg, match);
   }
 
-  
   return bot.onText(regexp, wrappedCallback);
 }
 
@@ -307,29 +308,49 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
 onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
-  const mergedPackage = match[1];
+  
+  /**
+   * @param {boolean} success
+   * @param {string} [reason]
+   */
+  async function mergeCallback(success, reason) {
+    if(success) {
+      return await replyMessage(chatId, msgId, toSafeMd(`记录释放成功`));
+    } else {
+      return await replyMessage(chatId, msgId, toSafeMd(reason));
+    }
+  }
 
+  merge(match[1], msg.from.id, mergeCallback);
+});
+
+/**
+ * @param {string} mergedPackage
+ * @param {number} userId
+ * @param {(success: boolean, reason?: string) => any} callback
+ */
+function merge(mergedPackage, userId, callback) {
   verb("trying to merge", mergedPackage);
 
   if(!packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === mergedPackage)).length) {
-    await replyMessage(chatId, msgId, toSafeMd(`这个 package 不在认领记录中`));
+    callback(false, `这个 package 不在认领记录中`);
     return;
   }
 
-  if(packageStatus.some(user => user.userid === msg.from.id)) {
-    if(!packageStatus.find(user => user.userid === msg.from.id).packages.includes(mergedPackage)) {
-      await replyMessage(chatId, msgId, toSafeMd(`这个 package 不在你的认领记录中。请联系该包的认领人`));
+  if(packageStatus.some(user => user.userid === userId)) {
+    if(!packageStatus.find(user => user.userid === userId).packages.includes(mergedPackage)) {
+      callback(false, `这个 package 不在你的认领记录中。请联系该包的认领人`);
       return;
     }
     //@ts-ignore
-    packageStatus.find(user => user.userid === msg.from.id).packages.remove(mergedPackage);
+    packageStatus.find(user => user.userid === userId).packages.remove(mergedPackage);
     storePackageStatus();
-    await replyMessage(chatId, msgId, toSafeMd(`记录释放成功`));
+    callback(true);
     return;
   }
 
-  await replyMessage(chatId, msgId, toSafeMd(`你还没有认领任何 package`));
-});
+  callback(false, `你还没有认领任何 package`);
+}
 
 const MARK_REGEXP = /^\/mark\s+(\S+)\s+(\S+)(\s+[\S\s]+)?$/;
 
@@ -387,20 +408,46 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 
   verb("trying to unmark", pkg, "'s", mark, "mark");
 
+  /**
+   * @param {boolean} success
+   * @param {string} [reason]
+   */
+  async function unmarkCallback(success, reason) {
+    if(success) {
+      return await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+    } else {
+      return await replyMessage(chatId, msgId, toSafeMd(reason));
+    }
+  }
+
+  unmark(pkg, mark, unmarkCallback);
+});
+
+/**
+ * 
+ * @param {string} pkg
+ * @param {string} mark
+ * @param {(success: boolean, reason?: string) => any} callback
+ */
+async function unmark(pkg, mark, callback) {
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(target.marks.some(markObj => markObj.name === mark)) {
       target.marks = target.marks.filter(markObj => markObj.name !== mark);
       target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
-      storePackageMarks();
-      return await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+      try {
+        await storePackageMarks();
+      } catch(_) {
+        return callback(false, "未能写入数据库");
+      }
+      return callback(true);
     } else {
-      return await replyMessage(chatId, msgId, toSafeMd(`该 package 目前未被设定为此状态`));
+      return callback(false, "该 package 目前未被设定为此状态");
     }
   } else {
-    return await replyMessage(chatId, msgId, toSafeMd(`表中没有该 package`));
+    return callback(false, "表中没有该 package");
   }
-});
+}
 
 /**
  * @param {number} chatId
@@ -432,66 +479,27 @@ onText(/^\/status@?/, async (msg) => {
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
 
-onText(/^\/more@?/, async (msg) => {
+onText(/^\/more(?:@[\S]+?)\s+([\S]+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
+  const pkgname = match[1];
 
   verb("trying to show mark status...");
 
-  /**
-   * @type {Map<string, { pkgName: string; by: {
-    url: string;
-    uid: number;
-    alias: string;
-  } | null; comment: string; }[]>}
-   */
-  const markToPkgsMap = new Map();
-  let multipleMarkStatusStr = "";
-  
-  for(const pkg of packageMarks) {
-    if(pkg.marks.length === 0) continue;
-    pkg.marks.forEach((mark) => {
-      if(!markToPkgsMap.has(mark.name)) {
-        markToPkgsMap.set(mark.name, []);
-      }
-      markToPkgsMap.get(mark.name).push({ pkgName: pkg.name, by: mark.by, comment: mark.comment });
-    });
-    
-    if(pkg.marks.length === 1) continue;
-    
-    multipleMarkStatusStr += "`" + toSafeCode(pkg.name) + "`";
-    multipleMarkStatusStr += toSafeMd(":\n");
-    multipleMarkStatusStr += marksToStringArr(pkg.marks).join("\n");
-    multipleMarkStatusStr += "\n\n";
+  let statusStr = "";
+
+  for(const packageMark of packageMarks) {
+    if(packageMark.name !== pkgname) continue;
+    statusStr += marksToStringArr(packageMark.marks).join(" ");
   }
 
-  let singleMarkStatusStr = "";
-  markToPkgsMap.forEach((marksArr, markName) => {
-    const oneStatusPerLineStr = marksArr.sort((mark1, mark2) => strcmp(mark1.pkgName, mark2.pkgName)).map(mark => {
-      const safeDisplayComment = mark.comment ? toSafeMd(`(${mark.comment})`) : "";
-      return `\`${toSafeCode(mark.pkgName)}\`${safeDisplayComment} by ${mark.by ? toSafeMd(mark.by.alias) : "null"}`
-    }).join("\n");
-    singleMarkStatusStr += markToString(markName);
-    singleMarkStatusStr += toSafeMd(":\n");
-    // maybe we can have 2 status per line in the future?
-    singleMarkStatusStr += addIndent(forceResplitLines(oneStatusPerLineStr, 1, " "), 2);
-    singleMarkStatusStr += "\n\n";
-  });
+  await replyMessage(chatId, msgId, statusStr || "该包目前不具有任何标记", { parse_mode: "MarkdownV2" });
+});
 
-  if(!multipleMarkStatusStr) {
-    if(singleMarkStatusStr) {
-      multipleMarkStatusStr = toSafeMd("具有多个状态的包：\n\n(empty)");
-    }
-  } else {
-    multipleMarkStatusStr = toSafeMd("具有多个状态的包：\n\n") + multipleMarkStatusStr;
-  }
-
-  let statusStr = singleMarkStatusStr + multipleMarkStatusStr;
-
-  statusStr = statusStr || toSafeMd("(empty)");
-  statusStr += toSafeMd("\n可以使用 mark 和 unmark 命令来维护此列表。");
-
-  await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
+onText(/^\/more(?:@[\S]+?)$/, async (msg) => {
+  const chatId = msg.chat.id;
+  const msgId = msg.message_id;
+  await replyMessage(chatId, msgId, toSafeMd("Usage: /more pkgname"), { parse_mode: "MarkdownV2" });
 });
 
 bot.on("message", (msg) => {
@@ -505,14 +513,48 @@ const http = require("http");
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  switch(url.pathname) {
-    case "/pkg":
+  const args = url.pathname.slice(1).split("/");
+  const route = args[0];
+  switch(route) {
+    case "pkg":
       res.writeHead(200, { 'Content-Type': 'application/json' });
       const data = {
         workList: stripPackageStatus(packageStatus),
         markList: stripPackageMarks(packageMarks),
       };
       res.end(JSON.stringify(data));
+      break;
+    case "delete":
+      const apiToken = url.searchParams.get("token");
+      if(apiToken !== HTTP_API_TOKEN) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end("Forbidden");
+        break;
+      }
+      if(args.length != 3) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end("Bad Request");
+        break;
+      }
+      const pkgname = args[1], status = args[2];
+      if(status !== "ftbfs" && status !== "leaf") {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end("Bad Request");
+        break;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      if(status === "ftbfs") {
+        const userId = localUtils.findUserIdByPackage(pkgname);
+        if(userId === null) return;
+        const link = getMentionLink(userId);
+        sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + "已出包")}`);
+        merge(pkgname, userId, async (success, reason) => {
+          if(!success) {
+            await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`));
+          }
+        });
+      }
+      res.end("success");
       break;
     default:
       res.writeHead(404, { 'Content-Type': 'text/plain' });

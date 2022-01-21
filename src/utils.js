@@ -172,6 +172,16 @@ function getAlias(uid) {
   return "uid=" + uid;
 }
 
+/**
+ * @param {string} pkgname
+ * @returns {number | null}
+ */
+ function findUserIdByPackage(pkgname) {
+  const result = packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === pkgname));
+  if(result.length === 0) return null;
+  return result[0].userid;
+}
+
 function getTodayTimestamp() {
   const now = Date.now();
   const extra = (now + TZ * 3600 * 1e3) % (24 * 3600 * 1e3);
@@ -519,6 +529,7 @@ module.exports = {
   marksToStringArr,
   markToString,
   markToStringWithSource,
+  findUserIdByPackage,
   forceResplitLines,
   storePackageStatus,
   storePackageMarks,
