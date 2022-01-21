@@ -549,7 +549,8 @@ const server = http.createServer((req, res) => {
           res.end("Package Not Found");
           break;
         }
-        const link = getMentionLink(userId, null, "认领人");
+        const alias = getAlias(userId);
+        const link = getMentionLink(userId, null, alias);
         sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
           parse_mode: "MarkdownV2",
         });
