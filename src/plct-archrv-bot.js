@@ -479,7 +479,7 @@ onText(/^\/status@?/, async (msg) => {
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
 
-onText(/^\/more(?:@[\S]+?)\s+([\S]+)$/, async (msg, match) => {
+onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const pkgname = match[1];
