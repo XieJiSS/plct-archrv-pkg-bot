@@ -590,22 +590,22 @@ const server = http.createServer((req, res) => {
       if(status === "ftbfs") {
         const userId = localUtils.findUserIdByPackage(pkgname);
         if(userId === null) {
-          res.end("Package Not Found");
-          break;
-        }
-        const alias = getAlias(userId);
-        const link = getMentionLink(userId, null, alias);
-        sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
-          parse_mode: "MarkdownV2",
-        });
+          res.write("package not found;");
+        } else {
+          const alias = getAlias(userId);
+          const link = getMentionLink(userId, null, alias);
+          sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
+            parse_mode: "MarkdownV2",
+          });
 
-        _merge(pkgname, userId, async (success, reason) => {
-          if(!success) {
-            await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
-              parse_mode: "MarkdownV2",
-            });
-          }
-        });
+          _merge(pkgname, userId, async (success, reason) => {
+            if(!success) {
+              await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
+                parse_mode: "MarkdownV2",
+              });
+            }
+          });
+        }
       }
 
       _unmarkMultiple(pkgname, ["outdated", "stuck", "ready"], async (success, reason) => {
