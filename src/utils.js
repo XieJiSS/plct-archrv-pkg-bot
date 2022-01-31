@@ -182,6 +182,34 @@ function getAlias(uid) {
   return result[0].userid;
 }
 
+/**
+ * @param {string} mark
+ */
+function findPackageMarksByMarkName(mark) {
+  return packageMarks.filter(pkg => pkg.marks.some(markObj => markObj.name === mark));
+}
+
+/**
+ * @param {string} comment
+ */
+function findPackageMarksByComment(comment) {
+  return packageMarks.filter(pkg => pkg.marks.some(markObj => {
+    const markCommentLower = markObj.comment.toLowerCase();
+    return markCommentLower.includes(comment.toLowerCase());
+  }));
+}
+
+/**
+ * @param {string[]} markNames
+ * @param {string} comment
+ */
+function findPackageMarksByMarkNamesAndComment(markNames, comment) {
+  return packageMarks.filter(pkg => pkg.marks.some(markObj => {
+    const markCommentLower = markObj.comment.toLowerCase();
+    return markNames.includes(markObj.name) && markCommentLower.includes(comment.toLowerCase());
+  }));
+}
+
 function getTodayTimestamp() {
   const now = Date.now();
   const extra = (now + TZ * 3600 * 1e3) % (24 * 3600 * 1e3);
@@ -520,6 +548,13 @@ function stripPackageMarks(status) {
   return ret;
 }
 
+/**
+ * @param {string} string
+ */
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+}
+
 module.exports = {
   MARK2STR,
   packageStatus,
@@ -530,6 +565,9 @@ module.exports = {
   markToString,
   markToStringWithSource,
   findUserIdByPackage,
+  findPackageMarksByComment,
+  findPackageMarksByMarkName,
+  findPackageMarksByMarkNamesAndComment,
   forceResplitLines,
   storePackageStatus,
   storePackageMarks,
@@ -548,6 +586,7 @@ module.exports = {
   strcmp,
   kwd2regexp,
   fullKwd2regexp,
+  escapeRegExp,
   stripPackageStatus,
   stripPackageMarks,
 };

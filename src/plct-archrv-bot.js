@@ -1,6 +1,8 @@
 /* eslint-disable no-case-declarations */
 "use strict";
 
+;(async () => {
+
 require("dotenv").config({
   path: "./config/.env",
 });
@@ -17,9 +19,11 @@ const {
   addIndent,
   forceResplitLines,
   getAlias,
+  escapeRegExp,
   marksToStringArr,
   markToString,
   getMentionLink,
+  findPackageMarksByMarkNamesAndComment,
   toSafeMd,
   toSafeCode,
   sleep,
@@ -57,6 +61,7 @@ Array.prototype.remove = function (value) {
 }
 
 const bot = new TelegramBot(token, { polling: true });
+const BOT_ID = await bot.getMe().then((me) => me.id);
 const ADMIN_ID = Number(process.env["PLCT_BOT_ADMIN_USERID"]);
 const CHAT_ID = process.env["PLCT_CHAT_ID"];
 const HTTP_API_TOKEN = process.env["PLCT_HTTP_API_TOKEN"];
@@ -321,7 +326,7 @@ onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
     }
   }
 
-  merge(match[1], msg.from.id, mergeCallback);
+  _merge(match[1], msg.from.id, mergeCallback);
 });
 
 /**
@@ -329,7 +334,7 @@ onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
  * @param {number} userId
  * @param {(success: boolean, reason?: string) => any} callback
  */
-function merge(mergedPackage, userId, callback) {
+function _merge(mergedPackage, userId, callback) {
   verb("trying to merge", mergedPackage);
 
   if(!packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === mergedPackage)).length) {
@@ -370,6 +375,30 @@ onText(MARK_REGEXP, async (msg, match) => {
   
   const mentionLink = getMentionLink(msg.from.id, null, msg.from.first_name, msg.from.last_name, false);
 
+  /**
+   * @param {boolean} success
+   * @param {string} [reason]
+   */
+  function markCallback(success, reason) {
+    if(success) {
+      return replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+    } else {
+      return replyMessage(chatId, msgId, toSafeMd(reason));
+    }
+  }
+
+  _mark(pkg, mark, comment, userId, mentionLink, markCallback);
+});
+
+/**
+ * @param {string} pkg
+ * @param {string} mark
+ * @param {string} comment
+ * @param {number} userId
+ * @param {string} mentionLink
+ * @param {(success: boolean, reason?: string) => any} callback
+ */
+async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(!target.marks.some(markObj => markObj.name === mark)) {
@@ -390,9 +419,13 @@ onText(MARK_REGEXP, async (msg, match) => {
     });
     packageMarks.sort((pkg1, pkg2) => strcmp(pkg1.name, pkg2.name));
   }
-  storePackageMarks();
-  await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
-});
+  try {
+    await storePackageMarks();
+  } catch {
+    return callback(false, "未能写入数据库");
+  }
+  callback(true);
+}
 
 onText(/^\/mark/, async (msg) => {
   const chatId = msg.chat.id;
@@ -420,16 +453,26 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
     }
   }
 
-  unmark(pkg, mark, unmarkCallback);
+  _unmark(pkg, mark, unmarkCallback);
 });
 
 /**
- * 
+ * @param {string} pkg
+ * @param {string[]} marks
+ * @param {(success: boolean, reason?: string) => any} callback
+ */
+async function _unmarkMultiple(pkg, marks, callback) {
+  for(const mark of marks) {
+    await _unmark(pkg, mark, callback);
+  }
+}
+
+/**
  * @param {string} pkg
  * @param {string} mark
  * @param {(success: boolean, reason?: string) => any} callback
  */
-async function unmark(pkg, mark, callback) {
+async function _unmark(pkg, mark, callback) {
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(target.marks.some(markObj => markObj.name === mark)) {
@@ -437,10 +480,10 @@ async function unmark(pkg, mark, callback) {
       target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
       try {
         await storePackageMarks();
-      } catch(_) {
+      } catch {
         return callback(false, "未能写入数据库");
       }
-      return callback(true);
+      return callback(true, mark);
     } else {
       return callback(false, "该 package 目前未被设定为此状态");
     }
@@ -543,6 +586,7 @@ const server = http.createServer((req, res) => {
         break;
       }
       res.writeHead(200, { 'Content-Type': 'text/plain' });
+
       if(status === "ftbfs") {
         const userId = localUtils.findUserIdByPackage(pkgname);
         if(userId === null) {
@@ -554,7 +598,8 @@ const server = http.createServer((req, res) => {
         sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
           parse_mode: "MarkdownV2",
         });
-        merge(pkgname, userId, async (success, reason) => {
+
+        _merge(pkgname, userId, async (success, reason) => {
           if(!success) {
             await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
               parse_mode: "MarkdownV2",
@@ -562,6 +607,55 @@ const server = http.createServer((req, res) => {
           }
         });
       }
+
+      _unmarkMultiple(pkgname, ["outdated", "stuck", "ready"], async (success, reason) => {
+        if(success) {
+          // for sucess === true, `reason` is the name of the modified mark
+          const mark = reason;
+          await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 不再被标记为 ${mark}`), {
+            parse_mode: "MarkdownV2",
+          });
+        }
+      });
+
+      findPackageMarksByMarkNamesAndComment(["outdated_dep", "missing_dep"], `[${pkgname}]`).forEach(pkg => {
+        /**
+         * @type {Set<string>}
+         */
+        const mentionLinkSet = new Set();
+        pkg.marks.forEach(mark => {
+          let url = getMentionLink(BOT_ID, null, "null");
+          if(mark.by) {
+            mentionLinkSet.add(mark.by.url);
+            url = mark.by.url;
+          }
+          const uid = mark.by ? mark.by.uid : BOT_ID;
+          if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
+            _unmark(pkg.name, mark.name, async (success, _) => {
+              if(!success) return;
+              await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 不再被标记为 ${mark}`), {
+                parse_mode: "MarkdownV2",
+              });
+            });
+          } else {
+            const safePkgname = escapeRegExp(pkgname);
+            const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
+            _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
+              if(!success) return;
+              await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 comment 内移除。`), {
+                parse_mode: "MarkdownV2",
+              });
+            });
+          }
+        });
+        if(mentionLinkSet.size > 0) {
+          let pingStr = "ping";
+          Array.from(mentionLinkSet).forEach(link => {
+            pingStr += " " + link;
+          });
+          sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+        }
+      });
       res.end("success");
       break;
     default:
@@ -571,3 +665,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(30644);
+
+})();
