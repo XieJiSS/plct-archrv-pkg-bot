@@ -633,7 +633,7 @@ const server = http.createServer((req, res) => {
           if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
             _unmark(pkg.name, mark.name, async (success, _) => {
               if(!success) return;
-              await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 不再被标记为 ${mark}`), {
+              await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 不再被标记为 ${mark.name}`), {
                 parse_mode: "MarkdownV2",
               });
             });
