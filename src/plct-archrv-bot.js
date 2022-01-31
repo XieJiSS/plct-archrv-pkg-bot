@@ -608,7 +608,7 @@ const server = http.createServer((req, res) => {
         }
       }
 
-      _unmarkMultiple(pkgname, ["outdated", "stuck", "ready"], async (success, reason) => {
+      _unmarkMultiple(pkgname, ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown"], async (success, reason) => {
         if(success) {
           // for sucess === true, `reason` is the name of the modified mark
           const mark = reason;
