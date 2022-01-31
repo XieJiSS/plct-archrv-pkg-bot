@@ -23,6 +23,7 @@ const {
   marksToStringArr,
   markToString,
   getMentionLink,
+  findUserIdByPackage,
   findPackageMarksByMarkNamesAndComment,
   toSafeMd,
   toSafeCode,
@@ -283,7 +284,11 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   verb("trying to add", newPackage);
 
   if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === newPackage)).length) {
-    await replyMessage(chatId, msgId, toSafeMd(`认领失败，这个 package 已被其他人认领`));
+    if(findUserIdByPackage(newPackage) === msg.from.id) {
+      await replyMessage(chatId, msgId, toSafeMd(`无需重复认领`));
+    } else {
+      await replyMessage(chatId, msgId, toSafeMd(`认领失败，这个 package 已被其他人认领`));
+    }
     return;
   }
 
@@ -608,7 +613,8 @@ const server = http.createServer((req, res) => {
         }
       }
 
-      _unmarkMultiple(pkgname, ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown"], async (success, reason) => {
+      const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore"];
+      _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
         if(success) {
           // for sucess === true, `reason` is the name of the modified mark
           const mark = reason;
