@@ -599,7 +599,7 @@ const server = http.createServer((req, res) => {
         } else {
           const alias = getAlias(userId);
           const link = getMentionLink(userId, null, alias);
-          sendMessage(CHAT_ID, `ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
+          sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
             parse_mode: "MarkdownV2",
           });
 
@@ -618,7 +618,7 @@ const server = http.createServer((req, res) => {
         if(success) {
           // for sucess === true, `reason` is the name of the modified mark
           const mark = reason;
-          await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 不再被标记为 ${mark}`), {
+          await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 已出包，不再被标记为 ${mark}`), {
             parse_mode: "MarkdownV2",
           });
         }
@@ -639,7 +639,7 @@ const server = http.createServer((req, res) => {
           if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
             _unmark(pkg.name, mark.name, async (success, _) => {
               if(!success) return;
-              await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 不再被标记为 ${mark.name}`), {
+              await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
                 parse_mode: "MarkdownV2",
               });
             });
@@ -648,14 +648,14 @@ const server = http.createServer((req, res) => {
             const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
             _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
               if(!success) return;
-              await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 comment 内移除。`), {
+              await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 内移除。`), {
                 parse_mode: "MarkdownV2",
               });
             });
           }
         });
         if(mentionLinkSet.size > 0) {
-          let pingStr = "ping";
+          let pingStr = "Ping";
           Array.from(mentionLinkSet).forEach(link => {
             pingStr += " " + link;
           });
