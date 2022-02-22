@@ -313,6 +313,11 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   } else {
     await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
   }
+
+  if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
+    await sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${newPackage} 已被认领。`));
+    await sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方认领包`));
+  }
 });
 
 onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
@@ -386,7 +391,11 @@ onText(MARK_REGEXP, async (msg, match) => {
    */
   function markCallback(success, reason) {
     if(success) {
-      return replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+      replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+      if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
+        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${pkg} 已被标记为 ${mark}：${comment || "无注释"}`));
+        sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`));
+      }
     } else {
       return replyMessage(chatId, msgId, toSafeMd(reason));
     }
