@@ -9,6 +9,7 @@ require("dotenv").config({
 
 const TelegramBot = require("node-telegram-bot-api");
 const { inspect } = require("util");
+const crypto = require("crypto");
 
 console.log("[INFO]", "PID", process.pid);  // eslint-disable-line
 const verb = require("./_verbose");
@@ -16,6 +17,7 @@ const verb = require("./_verbose");
 const localUtils = require("./utils");
 
 const {
+  defer,
   addIndent,
   forceResplitLines,
   getAlias,
@@ -625,8 +627,9 @@ const server = http.createServer((req, res) => {
         });
       }
 
+      ;(async function fencedAtomicOps() {
       const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore"];
-      _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
+      await _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
         if(success) {
           // for sucess === true, `reason` is the name of the modified mark
           const mark = reason;
@@ -636,12 +639,14 @@ const server = http.createServer((req, res) => {
         }
       });
 
-      findPackageMarksByMarkNamesAndComment(["outdated_dep", "missing_dep"], `[${pkgname}]`).forEach(pkg => {
+      const targetPakcages = findPackageMarksByMarkNamesAndComment(["outdated_dep", "missing_dep"], `[${pkgname}]`);
+      const deferKey = crypto.randomBytes(16).toString("hex");
+      for(const pkg of targetPakcages) {
         /**
          * @type {Set<string>}
          */
         const mentionLinkSet = new Set();
-        pkg.marks.forEach(mark => {
+        for(const mark of pkg.marks.slice()) {
           let url = getMentionLink(BOT_ID, null, "null");
           if(mark.by) {
             mentionLinkSet.add(mark.by.url);
@@ -649,36 +654,38 @@ const server = http.createServer((req, res) => {
           }
           const uid = mark.by ? mark.by.uid : BOT_ID;
           if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
-            // we don't want the `_unmark` to manipulate the pkg.marks array,
-            // so that the .forEach call can finish without unexpected behaviors.
-            // hence, we invoke this function in the next tick.
-            process.nextTick(() => _unmark(pkg.name, mark.name, async (success, _) => {
+            await _unmark(pkg.name, mark.name, async (success, _) => {
               if(!success) return;
-              await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
-                parse_mode: "MarkdownV2",
+              defer.add(deferKey, async () => {
+                await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
+                  parse_mode: "MarkdownV2",
+                });
               });
-            }));
+            });
           } else {
             const safePkgname = escapeRegExp(pkgname);
             const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
-            // here, `_mark` won't remove/add elements from/to pkg.marks, so we can
-            // safely invoke it in the current tick.
-            _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
+            await _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
               if(!success) return;
-              await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
-                parse_mode: "MarkdownV2",
+              defer.add(deferKey, async () => {
+                await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
+                  parse_mode: "MarkdownV2",
+                });
               });
             });
           }
-        });
+        }
         if(mentionLinkSet.size > 0) {
           let pingStr = "Ping";
           Array.from(mentionLinkSet).forEach(link => {
             pingStr += " " + link;
           });
-          sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+          pingStr += toSafeMd(":");
+          await sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+          await defer.resolve(deferKey);
         }
-      });
+      }
+      })();  // invoke fencedAtomicOps()
       res.end("success");
       break;
     default:

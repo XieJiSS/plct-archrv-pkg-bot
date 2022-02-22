@@ -555,10 +555,53 @@ function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 }
 
+/**
+ * @type {Object.<string, Function[]>}
+ */
+const deferMap = Object.create(null);
+
+/**
+ * @type {string[]}
+ */
+const deferredKeys = [];
+
+const defer = {
+  /**
+   * @param {string} key
+   * @param {Function} func
+   */
+  async add(key, func) {
+    verb(defer, "adding", func, "to key", key);
+    if(deferredKeys.includes(key)) {
+      await func();
+      verb(defer, "resolved", func, "from already used key", key);
+      return;
+    }
+    if(deferMap[key]) {
+      deferMap[key].push(func);
+    } else {
+      deferMap[key] = [ func ];
+    }
+  },
+  /**
+   * @param {string} key
+   */
+  async resolve(key) {
+    deferredKeys.push(key);
+    if(!deferMap[key]) return;
+    for(const func of deferMap[key]) {
+      await func();  // preserve the original order
+      verb(defer, "resolved", func, "from key", key);
+    }
+    deferMap[key] = undefined;
+  }
+};
+
 module.exports = {
   MARK2STR,
   packageStatus,
   packageMarks,
+  defer,
   _safemd,
   addIndent,
   marksToStringArr,
