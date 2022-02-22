@@ -152,7 +152,7 @@ function sendMessageWithRateLimit(chatId, text, _options, options = {}) {
 // messages are added to queue by `sendMessage()`
 async function doSendMessage() {
   if(messageQueue.length === 0) {
-    await sleep(500);
+    await sleep(200);
     setTimeout(() => doSendMessage(), 0);
     return;
   }
@@ -165,18 +165,18 @@ async function doSendMessage() {
   bot.sendMessage(chatId, text, options).then(resolve).catch((err) => {
     verb(sendMessage, err.name, inspect(err), options);
     if(inspect(err).includes("429 Too Many Requests")) {
-      const sleepTime = parseInt(inspect(err).match(/ETELEGRAM: 429 Too Many Requests: retry after (\d+)/)[1], 10) * 1000 || 5000;
+      const sleepTime = parseInt(inspect(err).match(/ETELEGRAM: 429 Too Many Requests: retry after (\d+)/)[1], 10) * 1000 || 3000;
       verb(sendMessage, "waiting for", sleepTime, "ms before retrying...");
       sleep(sleepTime).then(() => bot.sendMessage(chatId, text, Object.assign(Object.assign({}, defaultMessageOption), _options)).then(resolve).catch(reject));
     } else {
       bot.sendMessage(chatId, text, Object.assign(Object.assign({}, defaultMessageOption), _options)).then(resolve).catch(reject);
     }
   });
-  await sleep(2000);
+  await sleep(800);
   setTimeout(() => doSendMessage(), 0);
   return;
 }
-setTimeout(() => doSendMessage(), 1000);
+setTimeout(() => doSendMessage(), 200);
 
 // push message to queue
 /**
@@ -614,7 +614,7 @@ const server = http.createServer((req, res) => {
       } else {
         const alias = getAlias(userId);
         const link = getMentionLink(userId, null, alias);
-        sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
+        sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": [auto-merge] " + pkgname + " 已出包")}`, {
           parse_mode: "MarkdownV2",
         });
 
