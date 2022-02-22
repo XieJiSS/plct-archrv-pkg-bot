@@ -395,11 +395,17 @@ onText(MARK_REGEXP, async (msg, match) => {
     if(success) {
       replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
       if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
-        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${pkg} 已被标记为 ${mark}：${comment || "无注释"}`));
-        sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`));
+        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${pkg} 已被标记为 ${mark}：${comment || "无注释"}`), {
+          parse_mode: "MarkdownV2"
+        });
+        sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`), {
+          parse_mode: "MarkdownV2"
+        });
       }
     } else {
-      return replyMessage(chatId, msgId, toSafeMd(reason));
+      return replyMessage(chatId, msgId, toSafeMd(reason), {
+        parse_mode: "MarkdownV2"
+      });
     }
   }
 
@@ -463,9 +469,21 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
    */
   async function unmarkCallback(success, reason) {
     if(success) {
-      return await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+      await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`), {
+        parse_mode: "MarkdownV2"
+      });
+      if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
+        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${pkg} 不再被标记为 ${mark}`), {
+          parse_mode: "MarkdownV2"
+        });
+        sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`), {
+          parse_mode: "MarkdownV2"
+        });
+      }
     } else {
-      return await replyMessage(chatId, msgId, toSafeMd(reason));
+      return await replyMessage(chatId, msgId, toSafeMd(reason), {
+        parse_mode: "MarkdownV2"
+      });
     }
   }
 
