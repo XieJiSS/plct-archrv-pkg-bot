@@ -660,7 +660,8 @@ const server = http.createServer((req, res) => {
       // 到这里，sendMessage 也跑完了（pushQueue 完成）
 
       // 之后清掉别的包有关这个包的特定 mark
-      const targetPakcages = findPackageMarksByMarkNamesAndComment(["outdated_dep", "missing_dep"], `[${pkgname}]`);
+      const refMarks = ["outdated_dep", "missing_dep"];
+      const targetPakcages = findPackageMarksByMarkNamesAndComment(refMarks, `[${pkgname}]`);
       for(const pkg of targetPakcages) {
         // 效果上需要先 Ping 后输出内容，但遍历完才能知道需要 Ping 谁，所以把输出手动 defer 到最后
         const deferKey = crypto.randomBytes(16).toString("hex");
@@ -669,6 +670,7 @@ const server = http.createServer((req, res) => {
          */
         const mentionLinkSet = new Set();
         for(const mark of pkg.marks.slice()) {
+          if(!refMarks.includes(mark.name)) continue;
           let url = getMentionLink(BOT_ID, null, "null");
           if(mark.by) {
             // we don't use mark.by.url here, because it is based on tg name but we want alias
