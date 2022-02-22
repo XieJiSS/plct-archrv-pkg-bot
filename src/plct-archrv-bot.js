@@ -517,7 +517,7 @@ onText(/^\/status@?/, async (msg) => {
     if (!user.packages.length) continue;
     statusStr += user.username ? toSafeMd(user.username) : getMentionLink(user.userid, null, "这个没有用户名的人", null);
     statusStr += toSafeMd(" - ");
-    statusStr += "`" + user.packages.map(toSafeCode).join("` `") + "`";
+    statusStr += "`" + user.packages.slice().sort().map(toSafeCode).join("` `") + "`";
     statusStr += "\n\n";
   }
 
