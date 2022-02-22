@@ -628,6 +628,7 @@ const server = http.createServer((req, res) => {
       }
 
       ;(async function fencedAtomicOps() {
+      // 自动出包后，首先把这个包的特定 mark 清掉
       const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore"];
       await _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
         if(success) {
@@ -638,10 +639,13 @@ const server = http.createServer((req, res) => {
           });
         }
       });
+      // 到这里，sendMessage 也跑完了（pushQueue 完成）
 
+      // 之后清掉别的包有关这个包的特定 mark
       const targetPakcages = findPackageMarksByMarkNamesAndComment(["outdated_dep", "missing_dep"], `[${pkgname}]`);
-      const deferKey = crypto.randomBytes(16).toString("hex");
       for(const pkg of targetPakcages) {
+        // 效果上需要先 Ping 后输出内容，但遍历完才能知道需要 Ping 谁，所以把输出手动 defer 到最后
+        const deferKey = crypto.randomBytes(16).toString("hex");
         /**
          * @type {Set<string>}
          */
@@ -649,13 +653,15 @@ const server = http.createServer((req, res) => {
         for(const mark of pkg.marks.slice()) {
           let url = getMentionLink(BOT_ID, null, "null");
           if(mark.by) {
-            mentionLinkSet.add(mark.by.url);
-            url = mark.by.url;
+            // we don't use mark.by.url here, because it is based on tg name but we want alias
+            url = getMentionLink(mark.by.uid, null, getAlias(mark.by.uid));
+            mentionLinkSet.add(url);
           }
           const uid = mark.by ? mark.by.uid : BOT_ID;
           if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
             await _unmark(pkg.name, mark.name, async (success, _) => {
               if(!success) return;
+              // defer 输出
               defer.add(deferKey, async () => {
                 await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
                   parse_mode: "MarkdownV2",
@@ -667,6 +673,7 @@ const server = http.createServer((req, res) => {
             const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
             await _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
               if(!success) return;
+              // defer 输出
               defer.add(deferKey, async () => {
                 await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
                   parse_mode: "MarkdownV2",
@@ -681,7 +688,9 @@ const server = http.createServer((req, res) => {
             pingStr += " " + link;
           });
           pingStr += toSafeMd(":");
+          // 先发送 Ping 消息
           await sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+          // 再发送此前被 defer 的输出
           await defer.resolve(deferKey);
         }
       }

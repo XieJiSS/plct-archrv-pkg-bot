@@ -571,10 +571,10 @@ const defer = {
    * @param {Function} func
    */
   async add(key, func) {
-    verb(defer, "adding", func, "to key", key);
+    verb("defer:", "adding", func, "to key", key);
     if(deferredKeys.includes(key)) {
       await func();
-      verb(defer, "resolved", func, "from already used key", key);
+      verb("defer:", "resolved", func, "from already used key", key);
       return;
     }
     if(deferMap[key]) {
@@ -591,7 +591,7 @@ const defer = {
     if(!deferMap[key]) return;
     for(const func of deferMap[key]) {
       await func();  // preserve the original order
-      verb(defer, "resolved", func, "from key", key);
+      verb("defer:", "resolved", func, "from key", key);
     }
     deferMap[key] = undefined;
   }
