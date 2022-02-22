@@ -640,18 +640,23 @@ const server = http.createServer((req, res) => {
           }
           const uid = mark.by ? mark.by.uid : BOT_ID;
           if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
-            _unmark(pkg.name, mark.name, async (success, _) => {
+            // we don't want the `_unmark` to manipulate the pkg.marks array,
+            // so that the .forEach call can finish without unexpected behaviors.
+            // hence, we invoke this function in the next tick.
+            process.nextTick(() => _unmark(pkg.name, mark.name, async (success, _) => {
               if(!success) return;
               await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
                 parse_mode: "MarkdownV2",
               });
-            });
+            }));
           } else {
             const safePkgname = escapeRegExp(pkgname);
             const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
+            // here, `_mark` won't remove/add elements from/to pkg.marks, so we can
+            // safely invoke it in the current tick.
             _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
               if(!success) return;
-              await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 内移除。`), {
+              await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
                 parse_mode: "MarkdownV2",
               });
             });
