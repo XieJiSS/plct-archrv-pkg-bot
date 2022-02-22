@@ -536,6 +536,11 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
 
   let statusStr = "";
 
+  if(packageStatus.some(user => user.packages.includes(pkgname))) {
+    const user = packageStatus.find(user => user.packages.includes(pkgname));
+    statusStr += toSafeMd(`该包已被 ${ getAlias(user.userid) } 认领。\n`);
+  }
+
   for(const packageMark of packageMarks) {
     if(packageMark.name !== pkgname) continue;
     statusStr += marksToStringArr(packageMark.marks).join(" ");
