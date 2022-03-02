@@ -187,6 +187,9 @@ function getAlias(uid) {
  * @param {string} mark
  */
 function findPackageMarksByMarkName(mark) {
+  // prune empty entries. Not doing real work, thus we can save it later
+  packageMarks = packageMarks.filter(pkg => pkg.marks.length > 0);
+
   return packageMarks.filter(pkg => pkg.marks.some(markObj => markObj.name === mark));
 }
 
@@ -194,6 +197,9 @@ function findPackageMarksByMarkName(mark) {
  * @param {string} comment
  */
 function findPackageMarksByComment(comment) {
+  // prune empty entries. Not doing real work, thus we can save it later
+  packageMarks = packageMarks.filter(pkg => pkg.marks.length > 0);
+
   return packageMarks.filter(pkg => pkg.marks.some(markObj => {
     const markCommentLower = markObj.comment.toLowerCase();
     return markCommentLower.includes(comment.toLowerCase());
@@ -205,6 +211,9 @@ function findPackageMarksByComment(comment) {
  * @param {string} comment
  */
 function findPackageMarksByMarkNamesAndComment(markNames, comment) {
+  // prune empty entries. Not doing real work, thus we can save it later
+  packageMarks = packageMarks.filter(pkg => pkg.marks.length > 0);
+
   return packageMarks.filter(pkg => pkg.marks.some(markObj => {
     const markCommentLower = markObj.comment.toLowerCase();
     return markNames.includes(markObj.name) && markCommentLower.includes(comment.toLowerCase());
