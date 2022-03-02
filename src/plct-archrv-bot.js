@@ -788,6 +788,7 @@ async function routeAddHandler(req, res) {
     });
   });
 
+  res.end("success");
   await defer.resolve(deferKey);
 }
 
