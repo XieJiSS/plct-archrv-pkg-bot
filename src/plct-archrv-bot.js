@@ -28,6 +28,7 @@ const {
   getMentionLink,
   getCurrentTimeStr,
   findUserIdByPackage,
+  findPackageMarksByMarkName,
   findPackageMarksByMarkNamesAndComment,
   toSafeMd,
   toSafeCode,
@@ -766,8 +767,14 @@ async function routeAddHandler(req, res) {
   const deferKey = crypto.randomBytes(16).toString("hex");
 
   const mentionLink = getMentionLink(BOT_ID, null, "null");
+  let shouldSendMsg = true;
+  if(findPackageMarksByMarkName("failing").filter(pkg => pkg.name === pkgname).length > 0) {
+    shouldSendMsg = false;
+  }
   await _mark(pkgname, "failing", getCurrentTimeStr(), BOT_ID, mentionLink, async (success, _) => {
     if(!success) return;
+    // 对于已存在 failing 标记的情况，需要更新 comment 内的时间（getCurrentTimeStr()），但不输出
+    if(!shouldSendMsg) return;
     // defer 输出
     defer.add(deferKey, async () => {
       await sendMessage(CHAT_ID, toSafeMd(`[ci] ${pkgname} 已被自动标记为 failing`), {
