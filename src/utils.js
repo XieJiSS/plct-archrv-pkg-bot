@@ -48,6 +48,7 @@ const MARK2STR = {
   ready: "无需操作即可从上游编译",
   ignore: "不适用于 riscv64",
   missing_dep: "缺依赖",
+  failing: "被自动标记为编译失败",
 };
 
 const MAX_SLEEP_TIME = 2147483647;  // to avoid TimeoutOverflowWarning
@@ -597,6 +598,13 @@ const defer = {
   }
 };
 
+function getCurrentTimeStr() {
+  return new Date().toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour12: false,
+  }) + " (UTC+8)";
+}
+
 module.exports = {
   MARK2STR,
   packageStatus,
@@ -615,6 +623,7 @@ module.exports = {
   storePackageStatus,
   storePackageMarks,
   getTodayTimestamp,
+  getCurrentTimeStr,
   getAlias,
   getMsgLink,
   getMentionLink,

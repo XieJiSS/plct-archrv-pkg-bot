@@ -10,6 +10,7 @@ require("dotenv").config({
 const TelegramBot = require("node-telegram-bot-api");
 const { inspect } = require("util");
 const crypto = require("crypto");
+const http = require("http");
 
 console.log("[INFO]", "PID", process.pid);  // eslint-disable-line
 const verb = require("./_verbose");
@@ -25,6 +26,7 @@ const {
   marksToStringArr,
   markToString,
   getMentionLink,
+  getCurrentTimeStr,
   findUserIdByPackage,
   findPackageMarksByMarkNamesAndComment,
   toSafeMd,
@@ -591,7 +593,203 @@ bot.on("message", (msg) => {
   }
 });
 
-const http = require("http");
+/**
+ * @param {http.IncomingMessage} req 
+ * @param {http.ServerResponse} res 
+ */
+async function routePkgHandler(req, res) {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  const data = {
+    workList: stripPackageStatus(packageStatus),
+    markList: stripPackageMarks(packageMarks),
+  };
+  res.end(JSON.stringify(data));
+}
+
+/**
+ * @param {http.IncomingMessage} req 
+ * @param {http.ServerResponse} res 
+ */
+async function routeDeleteHandler(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const args = url.pathname.slice(1).split("/");
+
+  const apiToken = url.searchParams.get("token");
+  if(apiToken !== HTTP_API_TOKEN) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end("Forbidden");
+    return;
+  }
+  if(args.length != 3) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end("Bad Request");
+    return;
+  }
+  const pkgname = args[1], status = args[2];
+  if(status !== "ftbfs" && status !== "leaf") {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end("Bad Request");
+    return;
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+
+  const userId = localUtils.findUserIdByPackage(pkgname);
+  if(userId === null) {
+    res.write("package not found;");
+  } else {
+    const alias = getAlias(userId);
+    const link = getMentionLink(userId, null, alias);
+    sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": [auto-merge] " + pkgname + " 已出包")}`, {
+      parse_mode: "MarkdownV2",
+    });
+
+    _merge(pkgname, userId, async (success, reason) => {
+      if(success) return;
+      await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
+        parse_mode: "MarkdownV2",
+      });
+    });
+  }
+
+  ;(async function fencedAtomicOps() {
+  // 自动出包后，首先把这个包的特定 mark 清掉
+  const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore"];
+  await _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
+    if(!success) return;
+    // for sucess === true, `reason` is the name of the modified mark
+    const mark = reason;
+    // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
+    await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 已出包，不再被标记为 ${mark}`), {
+      parse_mode: "MarkdownV2",
+    });
+  });
+  // 到这里，sendMessage 也跑完了（pushQueue 完成）
+
+  // 之后清掉别的包有关这个包的特定 mark
+  const refMarks = ["outdated_dep", "missing_dep"];
+  const targetPakcages = findPackageMarksByMarkNamesAndComment(refMarks, `[${pkgname}]`);
+  for(const pkg of targetPakcages) {
+    // 效果上需要先 Ping 后输出内容，但遍历完才能知道需要 Ping 谁，所以把输出手动 defer 到最后
+    const deferKey = crypto.randomBytes(16).toString("hex");
+    /**
+     * @type {Set<string>}
+     */
+    const mentionLinkSet = new Set();
+    for(const mark of pkg.marks.slice()) {
+      if(!refMarks.includes(mark.name)) continue;
+      let mentionLink = getMentionLink(BOT_ID, null, "null");
+      if(mark.by) {
+        // we don't use mark.by.url here, because it is based on tg name but we want alias
+        mentionLink = getMentionLink(mark.by.uid, null, getAlias(mark.by.uid));
+        mentionLinkSet.add(mentionLink);
+      }
+      const uid = mark.by ? mark.by.uid : BOT_ID;
+      if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
+        await _unmark(pkg.name, mark.name, async (success, _) => {
+          if(!success) return;
+          // defer 输出
+          defer.add(deferKey, async () => {
+            await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
+              parse_mode: "MarkdownV2",
+            });
+          });
+        });
+      } else {
+        const safePkgname = escapeRegExp(pkgname);
+        const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
+        await _mark(pkg.name, mark.name, comment, uid, mentionLink, async (success, _) => {
+          if(!success) return;
+          // defer 输出
+          defer.add(deferKey, async () => {
+            await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
+              parse_mode: "MarkdownV2",
+            });
+          });
+        });
+      }
+    }
+    if(mentionLinkSet.size > 0) {
+      let pingStr = "Ping";
+      Array.from(mentionLinkSet).forEach(link => {
+        pingStr += " " + link;
+      });
+      pingStr += toSafeMd(":");
+      // 先发送 Ping 消息
+      await sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+      // 再发送此前被 defer 的输出
+      await defer.resolve(deferKey);
+    }
+  }
+  })();  // invoke fencedAtomicOps()
+  res.end("success");
+}
+
+/**
+ * @param {http.IncomingMessage} req
+ * @param {http.ServerResponse} res
+ */
+async function routeAddHandler(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const args = url.pathname.slice(1).split("/");
+
+  const apiToken = url.searchParams.get("token");
+  if(apiToken !== HTTP_API_TOKEN) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end("Forbidden");
+    return;
+  }
+  if(args.length != 3) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end("Bad Request");
+    return;
+  }
+  const pkgname = args[1], status = args[2];
+  if(status !== "ftbfs") {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end("Bad Request");
+    return;
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+
+  const userId = localUtils.findUserIdByPackage(pkgname);
+  if(userId === null) {
+    res.write("package not found;");
+  } else {
+    const alias = getAlias(userId);
+    const link = getMentionLink(userId, null, alias);
+    // Ping 先输出，剩下的输出全部 defer
+    sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": [ci] " + pkgname + " is failing")}`, {
+      parse_mode: "MarkdownV2",
+    });
+  }
+
+  const deferKey = crypto.randomBytes(16).toString("hex");
+
+  const mentionLink = getMentionLink(BOT_ID, null, "null");
+  await _mark(pkgname, "failing", getCurrentTimeStr(), BOT_ID, mentionLink, async (success, _) => {
+    if(!success) return;
+    // defer 输出
+    defer.add(deferKey, async () => {
+      await sendMessage(CHAT_ID, toSafeMd(`[ci] ${pkgname} 已被自动标记为 failing`), {
+        parse_mode: "MarkdownV2",
+      });
+    });
+  });
+
+  await _unmarkMultiple(pkgname, ["ready"], async (success, reason) => {
+    if(!success) return;
+    // for sucess === true, `reason` is the name of the modified mark
+    const mark = reason;
+    // defer 输出
+    defer.add(deferKey, async () => {
+      await sendMessage(CHAT_ID, toSafeMd(`[ci] ${pkgname} 不再被标记为 ${mark}`), {
+        parse_mode: "MarkdownV2",
+      });
+    });
+  });
+
+  await defer.resolve(deferKey);
+}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -599,123 +797,13 @@ const server = http.createServer((req, res) => {
   const route = args[0];
   switch(route) {
     case "pkg":
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      const data = {
-        workList: stripPackageStatus(packageStatus),
-        markList: stripPackageMarks(packageMarks),
-      };
-      res.end(JSON.stringify(data));
+      routePkgHandler(req, res);
       break;
     case "delete":
-      const apiToken = url.searchParams.get("token");
-      if(apiToken !== HTTP_API_TOKEN) {
-        res.writeHead(403, { 'Content-Type': 'text/plain' });
-        res.end("Forbidden");
-        break;
-      }
-      if(args.length != 3) {
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end("Bad Request");
-        break;
-      }
-      const pkgname = args[1], status = args[2];
-      if(status !== "ftbfs" && status !== "leaf") {
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end("Bad Request");
-        break;
-      }
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-
-      const userId = localUtils.findUserIdByPackage(pkgname);
-      if(userId === null) {
-        res.write("package not found;");
-      } else {
-        const alias = getAlias(userId);
-        const link = getMentionLink(userId, null, alias);
-        sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": [auto-merge] " + pkgname + " 已出包")}`, {
-          parse_mode: "MarkdownV2",
-        });
-
-        _merge(pkgname, userId, async (success, reason) => {
-          if(!success) {
-            await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
-              parse_mode: "MarkdownV2",
-            });
-          }
-        });
-      }
-
-      ;(async function fencedAtomicOps() {
-      // 自动出包后，首先把这个包的特定 mark 清掉
-      const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore"];
-      await _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
-        if(success) {
-          // for sucess === true, `reason` is the name of the modified mark
-          const mark = reason;
-          await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 已出包，不再被标记为 ${mark}`), {
-            parse_mode: "MarkdownV2",
-          });
-        }
-      });
-      // 到这里，sendMessage 也跑完了（pushQueue 完成）
-
-      // 之后清掉别的包有关这个包的特定 mark
-      const refMarks = ["outdated_dep", "missing_dep"];
-      const targetPakcages = findPackageMarksByMarkNamesAndComment(refMarks, `[${pkgname}]`);
-      for(const pkg of targetPakcages) {
-        // 效果上需要先 Ping 后输出内容，但遍历完才能知道需要 Ping 谁，所以把输出手动 defer 到最后
-        const deferKey = crypto.randomBytes(16).toString("hex");
-        /**
-         * @type {Set<string>}
-         */
-        const mentionLinkSet = new Set();
-        for(const mark of pkg.marks.slice()) {
-          if(!refMarks.includes(mark.name)) continue;
-          let url = getMentionLink(BOT_ID, null, "null");
-          if(mark.by) {
-            // we don't use mark.by.url here, because it is based on tg name but we want alias
-            url = getMentionLink(mark.by.uid, null, getAlias(mark.by.uid));
-            mentionLinkSet.add(url);
-          }
-          const uid = mark.by ? mark.by.uid : BOT_ID;
-          if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
-            await _unmark(pkg.name, mark.name, async (success, _) => {
-              if(!success) return;
-              // defer 输出
-              defer.add(deferKey, async () => {
-                await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
-                  parse_mode: "MarkdownV2",
-                });
-              });
-            });
-          } else {
-            const safePkgname = escapeRegExp(pkgname);
-            const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
-            await _mark(pkg.name, mark.name, comment, uid, url, async (success, _) => {
-              if(!success) return;
-              // defer 输出
-              defer.add(deferKey, async () => {
-                await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
-                  parse_mode: "MarkdownV2",
-                });
-              });
-            });
-          }
-        }
-        if(mentionLinkSet.size > 0) {
-          let pingStr = "Ping";
-          Array.from(mentionLinkSet).forEach(link => {
-            pingStr += " " + link;
-          });
-          pingStr += toSafeMd(":");
-          // 先发送 Ping 消息
-          await sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
-          // 再发送此前被 defer 的输出
-          await defer.resolve(deferKey);
-        }
-      }
-      })();  // invoke fencedAtomicOps()
-      res.end("success");
+      routeDeleteHandler(req, res);
+      break;
+    case "add":
+      routeAddHandler(req, res);
       break;
     default:
       res.writeHead(404, { 'Content-Type': 'text/plain' });
