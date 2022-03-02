@@ -654,7 +654,7 @@ async function routeDeleteHandler(req, res) {
 
   ;(async function fencedAtomicOps() {
   // 自动出包后，首先把这个包的特定 mark 清掉
-  const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore"];
+  const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore", "failing"];
   await _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
     if(!success) return;
     // for sucess === true, `reason` is the name of the modified mark
