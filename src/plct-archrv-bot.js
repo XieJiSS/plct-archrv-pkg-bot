@@ -626,7 +626,7 @@ async function routeDeleteHandler(req, res) {
     res.end("Bad Request");
     return;
   }
-  const pkgname = args[1], status = args[2];
+  const pkgname = decodeURIComponent(args[1]), status = args[2];
   if(status !== "ftbfs" && status !== "leaf") {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end("Bad Request");
@@ -744,7 +744,7 @@ async function routeAddHandler(req, res) {
     res.end("Bad Request");
     return;
   }
-  const pkgname = args[1], status = args[2];
+  const pkgname = decodeURIComponent(args[1]), status = args[2];
   if(status !== "ftbfs") {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end("Bad Request");
