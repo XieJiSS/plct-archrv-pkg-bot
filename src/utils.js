@@ -3,6 +3,7 @@
 
 const assert = require("assert");
 const crypto = require("crypto");
+const _equal = require("deep-equal");
 const fs = require("fs");
 const { promisify } = require("util");
 const unlink = promisify(fs.unlink);
@@ -566,6 +567,17 @@ function escapeRegExp(string) {
 }
 
 /**
+ * @param {any} a
+ * @param {any} b
+ * @returns 
+ */
+function equal(a, b) {
+  return _equal(a, b, {
+    strict: true,
+  });
+}
+
+/**
  * @type {Object.<string, Function[]>}
  */
 const deferMap = Object.create(null);
@@ -619,6 +631,7 @@ module.exports = {
   packageStatus,
   packageMarks,
   defer,
+  equal,
   _safemd,
   addIndent,
   marksToStringArr,

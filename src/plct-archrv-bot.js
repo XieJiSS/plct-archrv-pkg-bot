@@ -19,6 +19,7 @@ const localUtils = require("./utils");
 
 const {
   defer,
+  equal,
   addIndent,
   forceResplitLines,
   getAlias,
@@ -124,6 +125,8 @@ function onText(regexp, cb) {
    text: string;
    options: TelegramBot.SendMessageOptions;
    _options: TelegramBot.SendMessageOptions;
+   throttle: boolean;
+   timestamp: number;
    resolve: (value: any) => void;
    reject: (reason?: any) => void;
   }[]}
@@ -134,17 +137,20 @@ const messageQueue = [];
 /**
  * @param {number | string} chatId
  * @param {string} text
+ * @param {boolean} throttle
  * @param {TelegramBot.SendMessageOptions} _options
  * @param {TelegramBot.SendMessageOptions} [options]
- * @returns {Promise<void>}
+ * @returns {Promise<TelegramBot.Message>}
  */
-function sendMessageWithRateLimit(chatId, text, _options, options = {}) {
+function sendMessageWithRateLimit(chatId, text, throttle, _options, options = {}) {
   return new Promise((resolve, reject) => {
     messageQueue.push({
       chatId,
       text,
       options,
       _options,
+      throttle,
+      timestamp: Date.now(),
       resolve,
       reject,
     });
@@ -159,11 +165,23 @@ async function doSendMessage() {
     setTimeout(() => doSendMessage(), 0);
     return;
   }
-  const { chatId, text, options, _options, resolve, reject } = messageQueue.shift();
+  let index = 0;
+  while(index < messageQueue.length) {
+    if(!messageQueue[index].throttle) {
+      break;
+    }
+    index++;
+  }
+  if(index === messageQueue.length) {
+    setTimeout(() => doSendMessage(), 800);
+    return;
+  }
+  let { chatId, text, options, _options, timestamp, resolve, reject } = messageQueue.splice(index, 1)[0];
   
   const slimText = (text.length > 20 ? text.substring(0, 20) + "..." : text).replace(/\n/g, "\\n");
   verb("Sending message", slimText, "to chat", chatId);
   verb("with options", options);
+  verb("lagging behind", Date.now() - timestamp, "ms");
 
   bot.sendMessage(chatId, text, options).then(resolve).catch((err) => {
     verb(sendMessage, err.name, inspect(err), options);
@@ -175,22 +193,143 @@ async function doSendMessage() {
       bot.sendMessage(chatId, text, Object.assign(Object.assign({}, defaultMessageOption), _options)).then(resolve).catch(reject);
     }
   });
-  await sleep(800);
-  setTimeout(() => doSendMessage(), 0);
+  setTimeout(() => doSendMessage(), 800);
   return;
 }
 setTimeout(() => doSendMessage(), 200);
+
+// no (throttled) message: sleep 200ms
+// has throttled message: send per chat and sleep 20ms
+/**
+ * @description Take throttled messages from queue, merge them, and push to the end of queue
+ */
+async function doSendThrottleMessage() {
+  if(messageQueue.length === 0) {
+    setTimeout(() => doSendThrottleMessage(), 200);
+    return;
+  }
+  /** @type {string | number} */
+  let currChatId;
+  /** @type {number[]} */
+  const currChatMsgIndex = [];
+
+  for(let i = 0; i < messageQueue.length; i++) {
+    if(messageQueue[i].throttle) {
+      const { chatId, timestamp } = messageQueue[i];
+      // 只要这个 chatId 的所有 throttled message 里存在被压了 120 秒还没发的消息，
+      // 就把这个 chatId 匹配的所有消息都发出去
+      if(Date.now() - timestamp >= 120e3) {
+        if(!currChatId) {
+          currChatId = chatId;
+          verb(doSendThrottleMessage, "chat", chatId, "has been throttled for 120 seconds,");
+          verb(doSendThrottleMessage, "sending all throttled messages for chat", chatId, "...");
+          // fall through to push
+        }
+      }
+      if(currChatId && currChatId === chatId) {
+        currChatMsgIndex.push(i);
+      }
+    }
+  }
+  if(!currChatId) {
+    setTimeout(() => doSendThrottleMessage(), 200);
+    return;
+  }
+  verb(doSendThrottleMessage, "trying to throttle messages in chat", currChatId);
+  // 从这里开始，为了避免 race condition，不能用 await，i.e. 要在一个 tick 内完成
+  /**
+   * @type {{
+      text: string;
+      options: TelegramBot.SendMessageOptions;
+      _options: TelegramBot.SendMessageOptions;
+      resolveCallbacks: ((value: any) => void)[];
+      rejectCallbacks: ((reason?: any) => void)[];
+    }[]}
+   */
+  const mergedMessages = [];
+  let throttledToMsgCount = 0;
+  for(let i = 0; i < currChatMsgIndex.length; i++) {
+    const currMessage = messageQueue[currChatMsgIndex[i]];
+    if(mergedMessages.length === 0) {
+      throttledToMsgCount++;
+      mergedMessages.push({
+        text: currMessage.text,
+        options: currMessage.options,
+        _options: currMessage._options,
+        resolveCallbacks: [ currMessage.resolve ],
+        rejectCallbacks: [ currMessage.reject ],
+      });
+    } else {
+      if(equal(currMessage.options, mergedMessages[mergedMessages.length - 1].options) &&
+      mergedMessages[mergedMessages.length - 1].text.length + currMessage.text.length <= 4000) {
+        // options match indicates _options match, because _options is generated from options
+        // messages with same options can be merged.
+        mergedMessages[mergedMessages.length - 1].text += "\n" + currMessage.text;
+        mergedMessages[mergedMessages.length - 1].resolveCallbacks.push(currMessage.resolve);
+        mergedMessages[mergedMessages.length - 1].rejectCallbacks.push(currMessage.reject);
+      } else {
+        // messages that don't share the same options (or are too long) cannot be merged,
+        // so we'd like to create a new entry.
+        throttledToMsgCount++;
+        mergedMessages.push({
+          text: currMessage.text,
+          options: currMessage.options,
+          _options: currMessage._options,
+          resolveCallbacks: [ currMessage.resolve ],
+          rejectCallbacks: [ currMessage.reject ],
+        });
+      }
+    }
+  }
+  verb(doSendThrottleMessage, "merged", currChatMsgIndex.length, "msgs into", throttledToMsgCount, "msgs");
+  for(let i = currChatMsgIndex.length - 1; i >= 0; i--) {
+    // remove backward to avoid index shift.
+    messageQueue.splice(currChatMsgIndex[i], 1);
+  }
+  // 到这里就结束 atomic 的部分了，可以开始用 await
+  for(let i = 0; i < mergedMessages.length; i++) {
+    const mergedMessage = mergedMessages[i];
+    function resolveAll() {
+      verb(resolveAll, "resolving all callbacks...");
+      mergedMessage.resolveCallbacks.forEach((resolve) => resolve());
+    }
+    function rejectAll() {
+      verb(resolveAll, "rejecting all callbacks...");
+      // Oh hell no, all promises are rejected!
+      mergedMessage.rejectCallbacks.forEach((reject) => reject());
+    }
+    messageQueue.push({
+      chatId: currChatId,
+      text: mergedMessage.text,
+      options: mergedMessage.options,
+      _options: mergedMessage._options,
+      timestamp: Date.now(),
+      throttle: false,
+      resolve: resolveAll,
+      reject: rejectAll,
+    });
+  }
+  // Since there're throttled message, it's highly possible that we did not consume them all.
+  // So sleep short and re-run, to consume as many messages as possible in a short time.
+  // If there's nothing to consume, we will sleep longer in that no-op call.
+  setTimeout(() => doSendThrottleMessage(), 20);
+}
+setTimeout(() => doSendThrottleMessage(), 200);
 
 // push message to queue
 /**
  * @param {number | string} chatId
  * @param {string} text
  * @param {TelegramBot.SendMessageOptions} [options]
+ * @param {boolean} [throttle]
  * @returns {Promise<TelegramBot.Message>}
  */
-function sendMessage(chatId, text, options = {}) {
+function sendMessage(chatId, text, options = {}, throttle = false) {
   options = Object.assign(Object.assign({}, defaultMessageOption), options);
   // Fallback options in case error occurs
+  /**
+   * @type {TelegramBot.SendMessageOptions}
+   */
   const _options = {
     disable_notification: options.disable_notification,
     // Fix Telegram MarkdownV2's strange parsing behavior
@@ -211,8 +350,7 @@ function sendMessage(chatId, text, options = {}) {
       return sendMessage(chatId, thisText, options);
     });
   }
-  // @ts-ignore
-  return sendMessageWithRateLimit(chatId, text, _options, options);
+  return sendMessageWithRateLimit(chatId, text, throttle, _options, options);
 }
 
 /**
@@ -508,6 +646,7 @@ async function _unmarkMultiple(pkg, marks, callback) {
  * @param {string} pkg
  * @param {string} mark
  * @param {(success: boolean, reason?: string) => any} callback
+ * @description 取消某个包的某个标记。不会等待 callback 执行完毕才返回。
  */
 async function _unmark(pkg, mark, callback) {
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
