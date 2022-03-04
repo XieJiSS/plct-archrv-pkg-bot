@@ -781,13 +781,13 @@ async function routeDeleteHandler(req, res) {
     const link = getMentionLink(userId, null, alias);
     sendMessage(CHAT_ID, `(auto-merge) ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
       parse_mode: "MarkdownV2",
-    });
+    }, true);
 
     _merge(pkgname, userId, async (success, reason) => {
       if(success) return;
       sendMessage(CHAT_ID, toSafeMd(`(auto-merge) failed: ${reason}`), {
         parse_mode: "MarkdownV2",
-      });
+      }, true);
     });
   }
 
@@ -801,7 +801,7 @@ async function routeDeleteHandler(req, res) {
     // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
     sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 已出包，不再被标记为 ${mark}`), {
       parse_mode: "MarkdownV2",
-    });
+    }, true);
   });
   // 到这里，sendMessage 也跑完了（pushQueue 完成）
 
@@ -831,7 +831,7 @@ async function routeDeleteHandler(req, res) {
           defer.add(deferKey, () => {
             sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
               parse_mode: "MarkdownV2",
-            });
+            }, true);
           });
         });
       } else {
@@ -843,7 +843,7 @@ async function routeDeleteHandler(req, res) {
           defer.add(deferKey, () => {
             sendMessage(CHAT_ID, toSafeMd(`(auto-mark) [${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
               parse_mode: "MarkdownV2",
-            });
+            }, true);
           });
         });
       }
@@ -855,7 +855,7 @@ async function routeDeleteHandler(req, res) {
       });
       pingStr += toSafeMd(":");
       // 先发送 ping 消息
-      sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+      sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" }, true);
       // 再发送此前被 defer 的输出
       defer.resolve(deferKey);
     }
@@ -900,7 +900,7 @@ async function routeAddHandler(req, res) {
     // Ping 先输出，剩下的输出全部 defer
     sendMessage(CHAT_ID, `(auto-mark) ping ${link}${toSafeMd(": " + pkgname + " is failing")}`, {
       parse_mode: "MarkdownV2",
-    });
+    }, true);
   }
 
   const deferKey = crypto.randomBytes(16).toString("hex");
@@ -918,7 +918,7 @@ async function routeAddHandler(req, res) {
     defer.add(deferKey, async () => {
       sendMessage(CHAT_ID, toSafeMd(`(auto-mark) ${pkgname} 已被自动标记为 failing`), {
         parse_mode: "MarkdownV2",
-      });
+      }, true);
     });
   });
 
@@ -930,7 +930,7 @@ async function routeAddHandler(req, res) {
     defer.add(deferKey, async () => {
       sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 不再被标记为 ${mark}`), {
         parse_mode: "MarkdownV2",
-      });
+      }, true);
     });
   });
 
