@@ -11,7 +11,11 @@
   "license": "MIT",
   "dependencies": {
     "@types/node-telegram-bot-api": "^0.50.0",
+    "deep-equal": "^2.0.5",
     "dotenv": "^9.0.2",
     "node-telegram-bot-api": "^0.50.0"
+  },
+  "devDependencies": {
+    "@types/deep-equal": "^1.0.1"
   }
 }
