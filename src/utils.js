@@ -319,9 +319,18 @@ function _safemd(unsafeMdArr, ...safeMdArr) {
 
 /**
  * @param {string} unsafeCode unsafe markdown v2 code
+ * @returns {string} safe code without backquotes
  */
 function toSafeCode(unsafeCode) {
   return unsafeCode.replace(/([`\\])/g, "\\$1");
+}
+
+/**
+ * @param {string} unsafeCode unsafe markdown v2 code
+ * @returns {string} safe code with backquotes
+ */
+function wrapCode(unsafeCode) {
+  return `\`${toSafeCode(unsafeCode)}\``;
 }
 
 /**
@@ -653,6 +662,7 @@ module.exports = {
   sha512hex,
   toSafeMd,
   toSafeCode,
+  wrapCode,
   readableFileSize,
   cleanup,
   sleep,

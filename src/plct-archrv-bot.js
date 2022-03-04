@@ -20,12 +20,9 @@ const localUtils = require("./utils");
 const {
   defer,
   equal,
-  addIndent,
-  forceResplitLines,
   getAlias,
   escapeRegExp,
   marksToStringArr,
-  markToString,
   getMentionLink,
   getCurrentTimeStr,
   findUserIdByPackage,
@@ -33,6 +30,7 @@ const {
   findPackageMarksByMarkNamesAndComment,
   toSafeMd,
   toSafeCode,
+  wrapCode,
   sleep,
   strcmp,
   packageStatus,
@@ -779,13 +777,14 @@ async function routeDeleteHandler(req, res) {
   } else {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
-    sendMessage(CHAT_ID, toSafeMd("(auto-merge) ping") + link + toSafeMd(`: ${pkgname} 已出包`), {
+    const msgTypeStr = wrapCode("(auto-merge)");
+    sendMessage(CHAT_ID, msgTypeStr + " ping" + link + toSafeMd(`: ${pkgname} 已出包`), {
       parse_mode: "MarkdownV2",
     }, true);
 
     _merge(pkgname, userId, (success, reason) => {
       if(success) return;
-      sendMessage(CHAT_ID, toSafeMd(`(auto-merge) failed: ${reason}`), {
+      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` failed: ${reason}`), {
         parse_mode: "MarkdownV2",
       }, true);
     });
@@ -798,8 +797,9 @@ async function routeDeleteHandler(req, res) {
     if(!success) return;
     // for sucess === true, `reason` is the name of the modified mark
     const mark = reason;
+    const msgTypeStr = wrapCode("(auto-unmark)");
     // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
-    sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 已出包，不再被标记为 ${mark}`), {
+    sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已出包，不再被标记为 ${mark}`), {
       parse_mode: "MarkdownV2",
     }, true);
   });
@@ -827,9 +827,10 @@ async function routeDeleteHandler(req, res) {
       if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
         await _unmark(pkg.name, mark.name, (success, _) => {
           if(!success) return;
+          const msgTypeStr = wrapCode("(auto-unmark)");
           // defer 输出
           defer.add(deferKey, () => {
-            sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
+            sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
               parse_mode: "MarkdownV2",
             }, true);
           });
@@ -839,9 +840,10 @@ async function routeDeleteHandler(req, res) {
         const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
         await _mark(pkg.name, mark.name, comment, uid, mentionLink, (success, _) => {
           if(!success) return;
+          const msgTypeStr = wrapCode("(auto-mark)");
           // defer 输出
           defer.add(deferKey, () => {
-            sendMessage(CHAT_ID, toSafeMd(`(auto-mark) [${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
+            sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` [${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
               parse_mode: "MarkdownV2",
             }, true);
           });
@@ -849,7 +851,7 @@ async function routeDeleteHandler(req, res) {
       }
     }
     if(mentionLinkSet.size > 0) {
-      let pingStr = toSafeMd("(auto-cc) ping");
+      let pingStr = wrapCode("(auto-cc)") + " ping";
       Array.from(mentionLinkSet).forEach(link => {
         pingStr += " " + link;
       });
@@ -897,8 +899,9 @@ async function routeAddHandler(req, res) {
   } else {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
+    const msgTypeStr = wrapCode("(auto-mark)");
     // Ping 先输出，剩下的输出全部 defer
-    sendMessage(CHAT_ID, `(auto-mark) ping ${link}${toSafeMd(": " + pkgname + " is failing")}`, {
+    sendMessage(CHAT_ID, msgTypeStr + ` ping ${link}${toSafeMd(": " + pkgname + " is failing")}`, {
       parse_mode: "MarkdownV2",
     }, true);
   }
@@ -914,9 +917,10 @@ async function routeAddHandler(req, res) {
     if(!success) return;
     // 对于已存在 failing 标记的情况，需要更新 comment 内的时间（getCurrentTimeStr()），但不输出
     if(!shouldSendMsg) return;
+    const msgTypeStr = wrapCode("(auto-mark)")
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, toSafeMd(`(auto-mark) ${pkgname} 已被自动标记为 failing`), {
+      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已被自动标记为 failing`), {
         parse_mode: "MarkdownV2",
       }, true);
     });
@@ -926,9 +930,10 @@ async function routeAddHandler(req, res) {
     if(!success) return;
     // for sucess === true, `reason` is the name of the modified mark
     const mark = reason;
+    const msgTypeStr = wrapCode("(auto-unmark)")
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 不再被标记为 ${mark}`), {
+      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 不再被标记为 ${mark}`), {
         parse_mode: "MarkdownV2",
       }, true);
     });
