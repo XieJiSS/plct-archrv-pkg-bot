@@ -779,7 +779,7 @@ async function routeDeleteHandler(req, res) {
   } else {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
-    sendMessage(CHAT_ID, `(auto-merge) ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
+    sendMessage(CHAT_ID, toSafeMd("(auto-merge) ping") + link + toSafeMd(`: ${pkgname} 已出包`), {
       parse_mode: "MarkdownV2",
     }, true);
 
@@ -849,7 +849,7 @@ async function routeDeleteHandler(req, res) {
       }
     }
     if(mentionLinkSet.size > 0) {
-      let pingStr = "(auto-cc) ping";
+      let pingStr = toSafeMd("(auto-cc) ping");
       Array.from(mentionLinkSet).forEach(link => {
         pingStr += " " + link;
       });
