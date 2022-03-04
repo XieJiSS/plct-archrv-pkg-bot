@@ -783,7 +783,7 @@ async function routeDeleteHandler(req, res) {
       parse_mode: "MarkdownV2",
     }, true);
 
-    _merge(pkgname, userId, async (success, reason) => {
+    _merge(pkgname, userId, (success, reason) => {
       if(success) return;
       sendMessage(CHAT_ID, toSafeMd(`(auto-merge) failed: ${reason}`), {
         parse_mode: "MarkdownV2",
@@ -794,7 +794,7 @@ async function routeDeleteHandler(req, res) {
   ;(async function fencedAtomicOps() {
   // 自动出包后，首先把这个包的特定 mark 清掉
   const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore", "failing"];
-  await _unmarkMultiple(pkgname, targetMarks, async (success, reason) => {
+  await _unmarkMultiple(pkgname, targetMarks, (success, reason) => {
     if(!success) return;
     // for sucess === true, `reason` is the name of the modified mark
     const mark = reason;
@@ -825,7 +825,7 @@ async function routeDeleteHandler(req, res) {
       }
       const uid = mark.by ? mark.by.uid : BOT_ID;
       if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
-        await _unmark(pkg.name, mark.name, async (success, _) => {
+        await _unmark(pkg.name, mark.name, (success, _) => {
           if(!success) return;
           // defer 输出
           defer.add(deferKey, () => {
@@ -837,7 +837,7 @@ async function routeDeleteHandler(req, res) {
       } else {
         const safePkgname = escapeRegExp(pkgname);
         const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
-        await _mark(pkg.name, mark.name, comment, uid, mentionLink, async (success, _) => {
+        await _mark(pkg.name, mark.name, comment, uid, mentionLink, (success, _) => {
           if(!success) return;
           // defer 输出
           defer.add(deferKey, () => {
@@ -910,24 +910,24 @@ async function routeAddHandler(req, res) {
   if(findPackageMarksByMarkName("failing").filter(pkg => pkg.name === pkgname).length > 0) {
     shouldSendMsg = false;
   }
-  await _mark(pkgname, "failing", getCurrentTimeStr(), BOT_ID, mentionLink, async (success, _) => {
+  await _mark(pkgname, "failing", getCurrentTimeStr(), BOT_ID, mentionLink, (success, _) => {
     if(!success) return;
     // 对于已存在 failing 标记的情况，需要更新 comment 内的时间（getCurrentTimeStr()），但不输出
     if(!shouldSendMsg) return;
     // defer 输出
-    defer.add(deferKey, async () => {
+    defer.add(deferKey, () => {
       sendMessage(CHAT_ID, toSafeMd(`(auto-mark) ${pkgname} 已被自动标记为 failing`), {
         parse_mode: "MarkdownV2",
       }, true);
     });
   });
 
-  await _unmarkMultiple(pkgname, ["ready"], async (success, reason) => {
+  await _unmarkMultiple(pkgname, ["ready"], (success, reason) => {
     if(!success) return;
     // for sucess === true, `reason` is the name of the modified mark
     const mark = reason;
     // defer 输出
-    defer.add(deferKey, async () => {
+    defer.add(deferKey, () => {
       sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 不再被标记为 ${mark}`), {
         parse_mode: "MarkdownV2",
       }, true);
