@@ -779,13 +779,13 @@ async function routeDeleteHandler(req, res) {
   } else {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
-    sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": [auto-merge] " + pkgname + " 已出包")}`, {
+    sendMessage(CHAT_ID, `(auto-merge) ping ${link}${toSafeMd(": " + pkgname + " 已出包")}`, {
       parse_mode: "MarkdownV2",
     });
 
     _merge(pkgname, userId, async (success, reason) => {
       if(success) return;
-      await sendMessage(CHAT_ID, toSafeMd(`自动 merge 失败：${reason}`), {
+      sendMessage(CHAT_ID, toSafeMd(`(auto-merge) failed: ${reason}`), {
         parse_mode: "MarkdownV2",
       });
     });
@@ -799,7 +799,7 @@ async function routeDeleteHandler(req, res) {
     // for sucess === true, `reason` is the name of the modified mark
     const mark = reason;
     // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
-    await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkgname} 已出包，不再被标记为 ${mark}`), {
+    sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 已出包，不再被标记为 ${mark}`), {
       parse_mode: "MarkdownV2",
     });
   });
@@ -828,8 +828,8 @@ async function routeDeleteHandler(req, res) {
         await _unmark(pkg.name, mark.name, async (success, _) => {
           if(!success) return;
           // defer 输出
-          defer.add(deferKey, async () => {
-            await sendMessage(CHAT_ID, toSafeMd(`自动 unmark 成功：${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
+          defer.add(deferKey, () => {
+            sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
               parse_mode: "MarkdownV2",
             });
           });
@@ -840,8 +840,8 @@ async function routeDeleteHandler(req, res) {
         await _mark(pkg.name, mark.name, comment, uid, mentionLink, async (success, _) => {
           if(!success) return;
           // defer 输出
-          defer.add(deferKey, async () => {
-            await sendMessage(CHAT_ID, toSafeMd(`mark 已更改：[${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
+          defer.add(deferKey, () => {
+            sendMessage(CHAT_ID, toSafeMd(`(auto-mark) [${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
               parse_mode: "MarkdownV2",
             });
           });
@@ -849,15 +849,15 @@ async function routeDeleteHandler(req, res) {
       }
     }
     if(mentionLinkSet.size > 0) {
-      let pingStr = "Ping";
+      let pingStr = "(auto-cc) ping";
       Array.from(mentionLinkSet).forEach(link => {
         pingStr += " " + link;
       });
       pingStr += toSafeMd(":");
-      // 先发送 Ping 消息
-      await sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
+      // 先发送 ping 消息
+      sendMessage(CHAT_ID, pingStr, { parse_mode: "MarkdownV2" });
       // 再发送此前被 defer 的输出
-      await defer.resolve(deferKey);
+      defer.resolve(deferKey);
     }
   }
   })();  // invoke fencedAtomicOps()
@@ -898,7 +898,7 @@ async function routeAddHandler(req, res) {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
     // Ping 先输出，剩下的输出全部 defer
-    sendMessage(CHAT_ID, `Ping ${link}${toSafeMd(": [ci] " + pkgname + " is failing")}`, {
+    sendMessage(CHAT_ID, `(auto-mark) ping ${link}${toSafeMd(": " + pkgname + " is failing")}`, {
       parse_mode: "MarkdownV2",
     });
   }
@@ -916,7 +916,7 @@ async function routeAddHandler(req, res) {
     if(!shouldSendMsg) return;
     // defer 输出
     defer.add(deferKey, async () => {
-      await sendMessage(CHAT_ID, toSafeMd(`[ci] ${pkgname} 已被自动标记为 failing`), {
+      sendMessage(CHAT_ID, toSafeMd(`(auto-mark) ${pkgname} 已被自动标记为 failing`), {
         parse_mode: "MarkdownV2",
       });
     });
@@ -928,7 +928,7 @@ async function routeAddHandler(req, res) {
     const mark = reason;
     // defer 输出
     defer.add(deferKey, async () => {
-      await sendMessage(CHAT_ID, toSafeMd(`[ci] ${pkgname} 不再被标记为 ${mark}`), {
+      sendMessage(CHAT_ID, toSafeMd(`(auto-unmark) ${pkgname} 不再被标记为 ${mark}`), {
         parse_mode: "MarkdownV2",
       });
     });
