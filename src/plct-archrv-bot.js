@@ -778,7 +778,7 @@ async function routeDeleteHandler(req, res) {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
     const msgTypeStr = wrapCode("(auto-merge)");
-    sendMessage(CHAT_ID, msgTypeStr + " ping" + link + toSafeMd(`: ${pkgname} 已出包`), {
+    sendMessage(CHAT_ID, msgTypeStr + " ping " + link + toSafeMd(`: ${pkgname} 已出包`), {
       parse_mode: "MarkdownV2",
     }, true);
 
