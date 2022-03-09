@@ -736,12 +736,20 @@ bot.on("message", (msg) => {
  * @param {http.ServerResponse} res 
  */
 async function routePkgHandler(req, res) {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  const data = {
-    workList: stripPackageStatus(packageStatus),
-    markList: stripPackageMarks(packageMarks),
-  };
-  res.end(JSON.stringify(data));
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if(!url.searchParams.has("mark")) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    const data = {
+      workList: stripPackageStatus(packageStatus),
+      markList: stripPackageMarks(packageMarks),
+    };
+    res.end(JSON.stringify(data));
+  } else {
+    const markName = url.searchParams.get("mark");
+    const packages = packageMarks.filter(pkg => pkg.marks.some(mark => mark.name === markName)).map(pkg => pkg.name);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(packages));
+  }
 }
 
 /**
