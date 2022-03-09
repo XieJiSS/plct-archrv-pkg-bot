@@ -445,7 +445,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   storePackageStatus();
 
   const packageMark = packageMarks.filter(pkg => pkg.name === newPackage)[0];
-  if(packageMark && packageMark.marks.length) {
+  if(packageMark && packageMark.marks.filter(mark => mark.name !== "failing").length) {
     const marks = packageMark.marks;
     let markStatusStr = toSafeMd(`认领成功，但请注意该 package 有特殊状态：\n`);
     markStatusStr += marksToStringArr(marks).join("\n");
