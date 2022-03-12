@@ -11,9 +11,32 @@ const TelegramBot = require("node-telegram-bot-api");
 const { inspect } = require("util");
 const crypto = require("crypto");
 const http = require("http");
+const lock = require("lockfile");
 
 console.log("[INFO]", "PID", process.pid);  // eslint-disable-line
 const verb = require("./_verbose");
+
+try {
+  const lockPromise = new Promise((res, rej) => {
+    lock.lock("plct.lock", function (err) {
+      err ? rej(err) : res();
+    });
+  });
+  await lockPromise;
+  verb(lock.lock, "successfuly locked plct.lock");
+} catch (e) {
+  verb(lock.lock, "failed to lock lockfile:", e);
+  process.exit(1);
+}
+
+require("async-exit-hook")(() => {
+  try {
+    lock.unlockSync("plct.lock");
+    verb(lock.unlockSync, "successfuly unlocked plct.lock");
+  } catch (e) {
+    verb(lock.unlockSync, "failed to unlock lockfile:", e);
+  }
+});
 
 const localUtils = require("./utils");
 

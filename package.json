@@ -10,12 +10,16 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "async-exit-hook": "^2.0.1",
     "deep-equal": "^2.0.5",
     "dotenv": "^9.0.2",
+    "lockfile": "^1.0.4",
     "node-telegram-bot-api": "^0.56.0"
   },
   "devDependencies": {
-    "@types/node-telegram-bot-api": "^0.56.0",
-    "@types/deep-equal": "^1.0.1"
+    "@types/async-exit-hook": "^2.0.0",
+    "@types/deep-equal": "^1.0.1",
+    "@types/lockfile": "^1.0.2",
+    "@types/node-telegram-bot-api": "^0.56.0"
   }
 }

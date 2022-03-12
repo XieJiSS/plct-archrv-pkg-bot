@@ -7,3 +7,4 @@ build/
 config/.env
 config/alias.json
 db/*.json
+plct.lock
