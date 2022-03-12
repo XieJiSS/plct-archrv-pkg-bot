@@ -500,8 +500,7 @@ function _merge(mergedPackage, userId, callback) {
     }
     //@ts-ignore
     packageStatus.find(user => user.userid === userId).packages.remove(mergedPackage);
-    storePackageStatus();
-    callback(true);
+    storePackageStatus().then(() => callback(true)).catch(err => callback(false, String(err)));
     return;
   }
 
@@ -560,6 +559,7 @@ onText(MARK_REGEXP, async (msg, match) => {
  * @param {(success: boolean, reason?: string) => any} callback
  */
 async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
+  verb(_mark, pkg, mark, comment);
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(!target.marks.some(markObj => markObj.name === mark)) {
@@ -580,12 +580,7 @@ async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
     });
     packageMarks.sort((pkg1, pkg2) => strcmp(pkg1.name, pkg2.name));
   }
-  try {
-    await storePackageMarks();
-  } catch {
-    return callback(false, "未能写入数据库");
-  }
-  callback(true);
+  storePackageMarks().then(() => callback(true)).catch(err => callback(false, String(err)));
 }
 
 onText(/^\/mark/, async (msg) => {
@@ -647,6 +642,7 @@ async function _unmarkMultiple(pkg, marks, callback) {
  * @description 取消某个包的某个标记。不会等待 callback 执行完毕才返回。
  */
 async function _unmark(pkg, mark, callback) {
+  verb(_unmark, pkg, mark);
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(target.marks.some(markObj => markObj.name === mark)) {
@@ -736,6 +732,7 @@ bot.on("message", (msg) => {
  * @param {http.ServerResponse} res 
  */
 async function routePkgHandler(req, res) {
+  verb(routePkgHandler);
   const url = new URL(req.url, `http://${req.headers.host}`);
   if(!url.searchParams.has("mark")) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -759,6 +756,7 @@ async function routePkgHandler(req, res) {
 async function routeDeleteHandler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const args = url.pathname.slice(1).split("/");
+  verb(routeDeleteHandler, args);
 
   const apiToken = url.searchParams.get("token");
   if(apiToken !== HTTP_API_TOKEN) {
@@ -881,6 +879,7 @@ async function routeDeleteHandler(req, res) {
 async function routeAddHandler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const args = url.pathname.slice(1).split("/");
+  verb(routeAddHandler, args);
 
   const apiToken = url.searchParams.get("token");
   if(apiToken !== HTTP_API_TOKEN) {
