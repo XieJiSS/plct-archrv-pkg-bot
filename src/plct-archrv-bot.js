@@ -32,7 +32,7 @@ try {
 require("async-exit-hook")(() => {
   try {
     lock.unlockSync("plct.lock");
-    verb(lock.unlockSync, "successfuly unlocked plct.lock");
+    verb(lock.unlockSync, "successfully unlocked plct.lock");
   } catch (e) {
     verb(lock.unlockSync, "failed to unlock lockfile:", e);
   }
