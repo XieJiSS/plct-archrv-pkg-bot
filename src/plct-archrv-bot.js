@@ -31,6 +31,8 @@ try {
 
 require("async-exit-hook")(() => {
   try {
+    console.log("[INFO]", "messages that fail to send:");
+    console.log(messageQueue);
     lock.unlockSync("plct.lock");
     verb(lock.unlockSync, "successfully unlocked plct.lock");
   } catch (e) {
