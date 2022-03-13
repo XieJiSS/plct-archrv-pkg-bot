@@ -536,16 +536,24 @@ onText(MARK_REGEXP, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const userId = msg.from.id;
+
   const pkg = match[1];
   const mark = match[2];
-  const comment = match[3] ? match[3].trim() : "";
+  let comment = match[3] ? match[3].trim() : "";
+  if(["ready"].includes(mark)) {
+    comment += " " + getCurrentTimeStr();
+    comment = comment.trim();
+  }
   
   verb("trying to mark", pkg, "as", mark);
-  
+  if(comment) {
+    verb("with comment", comment);
+  }
+
   if(!Object.keys(localUtils.MARK2STR).includes(mark)) {
     return await showMarkHelp(chatId);
   }
-  
+
   const mentionLink = getMentionLink(msg.from.id, null, msg.from.first_name, msg.from.last_name, false);
 
   /**
