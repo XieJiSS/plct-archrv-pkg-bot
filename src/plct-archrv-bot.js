@@ -23,7 +23,7 @@ try {
     });
   });
   await lockPromise;
-  verb(lock.lock, "successfuly locked plct.lock");
+  verb(lock.lock, "successfully locked plct.lock");
 } catch (e) {
   verb(lock.lock, "failed to lock lockfile:", e);
   process.exit(1);
