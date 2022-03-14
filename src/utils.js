@@ -72,10 +72,22 @@ async function storePackageStatus() {
   await writeFile(__dirname + "/../db/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
 }
 
+function storePackageStatusSync() {
+  verb(storePackageStatusSync);
+  fs.writeFileSync(__dirname + "/../db/packageStatus.json", JSON.stringify(packageStatus, null, 2));
+  fs.writeFileSync(__dirname + "/../db/packageStatus.bak.json", JSON.stringify(packageStatus, null, 2));
+}
+
 async function storePackageMarks() {
   verb(storePackageMarks);
   await writeFile(__dirname + "/../db/packageMarks.json", JSON.stringify(packageMarks, null, 2));
   await writeFile(__dirname + "/../db/packageMarks.bak.json", JSON.stringify(packageMarks, null, 2));
+}
+
+function storePackageMarksSync() {
+  verb(storePackageMarksSync);
+  fs.writeFileSync(__dirname + "/../db/packageMarks.json", JSON.stringify(packageMarks, null, 2));
+  fs.writeFileSync(__dirname + "/../db/packageMarks.bak.json", JSON.stringify(packageMarks, null, 2));
 }
 
 function loadPackageStatus() {
@@ -652,7 +664,9 @@ module.exports = {
   findPackageMarksByMarkNamesAndComment,
   forceResplitLines,
   storePackageStatus,
+  storePackageStatusSync,
   storePackageMarks,
+  storePackageMarksSync,
   getTodayTimestamp,
   getCurrentTimeStr,
   getAlias,

@@ -35,6 +35,9 @@ require("async-exit-hook")(() => {
       console.log("[INFO]", "messages that fail to send:");
       console.log(messageQueue);
     }
+    localUtils.storePackageStatusSync();
+    localUtils.storePackageMarksSync();
+    verb("stored package status and marks");
     lock.unlockSync("plct.lock");
     verb(lock.unlockSync, "successfully unlocked plct.lock");
   } catch (e) {
@@ -677,12 +680,12 @@ async function _unmarkMultiple(pkg, marks, callback) {
  * @description 取消某个包的某个标记。不会等待 callback 执行完毕才返回。
  */
 async function _unmark(pkg, mark, callback) {
-  verb(_unmark, pkg, mark);
   if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
     const target = packageMarks.filter(obj => obj.name === pkg)[0];
     if(target.marks.some(markObj => markObj.name === mark)) {
       target.marks = target.marks.filter(markObj => markObj.name !== mark);
       target.marks.sort((a, b) => a.name > b.name ? 1 : a.name === b.name ? 0 : -1);
+      verb(_unmark, pkg, mark);
       try {
         await storePackageMarks();
       } catch {
@@ -813,6 +816,7 @@ async function routeDeleteHandler(req, res) {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
 
   const userId = localUtils.findUserIdByPackage(pkgname);
+  verb(routeDeleteHandler, "userId is", userId);
   if(userId === null) {
     res.write("package not found;");
   } else {
@@ -835,7 +839,9 @@ async function routeDeleteHandler(req, res) {
   // 自动出包后，首先把这个包的特定 mark 清掉
   const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore", "failing"];
   await _unmarkMultiple(pkgname, targetMarks, (success, reason) => {
-    if(!success) return;
+    if(!success) {
+      verb(routeDeleteHandler, "failed to unmark multi:", pkgname, targetMarks, reason);
+    }
     // for sucess === true, `reason` is the name of the modified mark
     const mark = reason;
     const msgTypeStr = wrapCode("(auto-unmark)");
@@ -848,8 +854,9 @@ async function routeDeleteHandler(req, res) {
 
   // 之后清掉别的包有关这个包的特定 mark
   const refMarks = ["outdated_dep", "missing_dep"];
-  const targetPakcages = findPackageMarksByMarkNamesAndComment(refMarks, `[${pkgname}]`);
-  for(const pkg of targetPakcages) {
+  const targetPackages = findPackageMarksByMarkNamesAndComment(refMarks, `[${pkgname}]`);
+  verb(routeDeleteHandler, "other pkgs with marks pointing to", pkgname, ":", targetPackages);
+  for(const pkg of targetPackages) {
     // 效果上需要先 Ping 后输出内容，但遍历完才能知道需要 Ping 谁，所以把输出手动 defer 到最后
     const deferKey = crypto.randomBytes(16).toString("hex");
     /**
@@ -866,8 +873,12 @@ async function routeDeleteHandler(req, res) {
       }
       const uid = mark.by ? mark.by.uid : BOT_ID;
       if(mark.comment.toLowerCase() === `[${pkgname}]`.toLowerCase()) {
+        verb(routeDeleteHandler, "(auto) full match:", pkgname, "is", pkg.name, mark.name, mark.comment);
         await _unmark(pkg.name, mark.name, (success, _) => {
-          if(!success) return;
+          if(!success) {
+            verb(routeDeleteHandler, "failed to unmark", pkg.name, mark.name, _);
+            return;
+          }
           const msgTypeStr = wrapCode("(auto-unmark)");
           // defer 输出
           defer.add(deferKey, () => {
@@ -877,10 +888,15 @@ async function routeDeleteHandler(req, res) {
           });
         });
       } else {
+        verb(routeDeleteHandler, "(auto) partial match:", pkgname, "in", pkg.name, mark.name, mark.comment);
         const safePkgname = escapeRegExp(pkgname);
         const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
+        verb(routeDeleteHandler, "builded regexp name:", safePkgname, "-> new comment:", comment);
         await _mark(pkg.name, mark.name, comment, uid, mentionLink, (success, _) => {
-          if(!success) return;
+          if(!success) {
+            verb(routeDeleteHandler, "failed to mark", pkg.name, mark.name, mark.comment, _);
+            return;
+          }
           const msgTypeStr = wrapCode("(auto-mark)");
           // defer 输出
           defer.add(deferKey, () => {
