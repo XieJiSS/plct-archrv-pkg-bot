@@ -840,7 +840,6 @@ async function routeDeleteHandler(req, res) {
   const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore", "failing"];
   await _unmarkMultiple(pkgname, targetMarks, (success, reason) => {
     if(!success) {
-      verb(routeDeleteHandler, "failed to unmark multi:", pkgname, targetMarks, reason);
       return;
     }
     // for sucess === true, `reason` is the name of the modified mark
