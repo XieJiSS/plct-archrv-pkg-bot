@@ -95,9 +95,11 @@ function loadPackageStatus() {
   try {
     packageStatus = require("../db/packageStatus.json");
   } catch(e) {
+    verb(loadPackageStatus, e);
     try {
       packageStatus = require("../db/packageStatus.bak.json");
     } catch(e) {
+      verb(loadPackageStatus, e);
       packageStatus = [];
       storePackageStatus();
     }
@@ -110,9 +112,11 @@ function loadPackageMarks() {
   try {
     packageMarks = _updatePackageMarkSchema(require("../db/packageMarks.json"));
   } catch(e) {
+    verb(loadPackageMarks, e);
     try {
       packageMarks = _updatePackageMarkSchema(require("../db/packageMarks.bak.json"));
     } catch(e) {
+      verb(loadPackageMarks, e);
       packageMarks = [];
       storePackageMarks();
     }
