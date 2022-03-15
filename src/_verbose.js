@@ -1,6 +1,6 @@
 const obj2table = require("./_obj2table");
 
-const ENABLED = process.argv.includes("--verb");
+const ENABLED = !process.argv.includes("--verb=0");
 
 function verbose() {
   const args = [...arguments];
