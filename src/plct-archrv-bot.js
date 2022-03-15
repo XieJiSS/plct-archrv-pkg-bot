@@ -97,6 +97,8 @@ Array.prototype.remove = function (value) {
 
 const bot = new TelegramBot(token, { polling: true });
 const BOT_ID = await bot.getMe().then((me) => me.id);
+process.env["BOT_ID"] = String(BOT_ID);
+
 const ADMIN_ID = Number(process.env["PLCT_BOT_ADMIN_USERID"]);
 const CHAT_ID = process.env["PLCT_CHAT_ID"];
 const HTTP_API_TOKEN = process.env["PLCT_HTTP_API_TOKEN"];

@@ -29,12 +29,16 @@ let packageStatus = [];
     }[];
   }[] }
  */
-let packageMarks = [];
+let _packageMarksForInit;
+
+loadPackageMarks();
+// In order to keep refs in plct-archrv-bot.js, this variable should never be assigned again.
+const packageMarks = _packageMarksForInit;
 
 /**
  * @type {Object<string, string | undefined>}
  */
-let alias = {};
+let aliasMap = {};
 
 /**
  * @type {Object<string, string>}
@@ -109,20 +113,23 @@ loadPackageStatus();
 
 function loadPackageMarks() {
   verb(loadPackageMarks);
+  if(typeof _packageMarksForInit !== "undefined") {
+    verb("ERROR: packageMarks is already loaded");
+    return;
+  }
   try {
-    packageMarks = _updatePackageMarkSchema(require("../db/packageMarks.json"));
+    _packageMarksForInit = _updatePackageMarkSchema(require("../db/packageMarks.json"));
   } catch(e) {
     verb(loadPackageMarks, e);
     try {
-      packageMarks = _updatePackageMarkSchema(require("../db/packageMarks.bak.json"));
+      _packageMarksForInit = _updatePackageMarkSchema(require("../db/packageMarks.bak.json"));
     } catch(e) {
       verb(loadPackageMarks, e);
-      packageMarks = [];
+      _packageMarksForInit = [];
       storePackageMarks();
     }
   }
 }
-loadPackageMarks();
 
 /**
  * @param {{
@@ -170,9 +177,9 @@ function _updatePackageMarkSchema(oldPackageMarks) {
 function loadAlias() {
   verb(loadAlias);
   try {
-    alias = require("../config/alias.json");
+    aliasMap = require("../config/alias.json");
   } catch(e) {
-    alias = {};
+    aliasMap = {};
   }
 }
 loadAlias();
@@ -184,10 +191,24 @@ function getAlias(uid) {
   if(typeof uid !== "number") {
     return "invalid uid";
   }
-  if(typeof alias[uid] === "string") {
-    return alias[uid];
+  if(typeof aliasMap[uid] === "string") {
+    return aliasMap[uid];
   }
   return "uid=" + uid;
+}
+
+/**
+ * @param {string} alias
+ */
+function getUserIdByAlias(alias) {
+  for(const uid in aliasMap) {
+    if(aliasMap[uid] === alias) {
+      return Number(uid);
+    }
+  }
+  verb(getUserIdByAlias, "failed to find uid for alias", alias);
+  if(process.env["BOT_ID"]) return Number(process.env["BOT_ID"]);
+  else return 0;
 }
 
 /**
@@ -205,7 +226,7 @@ function getAlias(uid) {
  */
 function findPackageMarksByMarkName(mark) {
   // prune empty entries. Not doing real work, thus we can save it later
-  packageMarks = packageMarks.filter(pkg => pkg.marks.length > 0);
+  inplaceFilter(packageMarks, pkg => pkg.marks.length > 0);
 
   return packageMarks.filter(pkg => pkg.marks.some(markObj => markObj.name === mark));
 }
@@ -215,7 +236,7 @@ function findPackageMarksByMarkName(mark) {
  */
 function findPackageMarksByComment(comment) {
   // prune empty entries. Not doing real work, thus we can save it later
-  packageMarks = packageMarks.filter(pkg => pkg.marks.length > 0);
+  inplaceFilter(packageMarks, pkg => pkg.marks.length > 0);
 
   return packageMarks.filter(pkg => pkg.marks.some(markObj => {
     const markCommentLower = markObj.comment.toLowerCase();
@@ -229,7 +250,7 @@ function findPackageMarksByComment(comment) {
  */
 function findPackageMarksByMarkNamesAndComment(markNames, comment) {
   // prune empty entries. Not doing real work, thus we can save it later
-  packageMarks = packageMarks.filter(pkg => pkg.marks.length > 0);
+  inplaceFilter(packageMarks, pkg => pkg.marks.length > 0);
 
   return packageMarks.filter(pkg => pkg.marks.some(markObj => {
     const markCommentLower = markObj.comment.toLowerCase();
@@ -651,6 +672,25 @@ function getCurrentTimeStr() {
   }) + " (UTC+8)";
 }
 
+/**
+ * @template T
+ * @param {Array.<T>} arr
+ * @param {(element: T) => boolean} cond
+ * @returns {Array.<T>}
+ */
+function inplaceFilter(arr, cond) {
+  if(!Array.isArray(arr)) return arr;
+  if(typeof cond !== "function") return arr;
+
+  let nextPos = 0;
+
+  for (const el of arr) {
+    if (cond(el)) arr[nextPos++] = el;
+  }
+  arr.splice(nextPos);
+  return arr;
+}
+
 module.exports = {
   MARK2STR,
   packageStatus,
@@ -674,6 +714,7 @@ module.exports = {
   getTodayTimestamp,
   getCurrentTimeStr,
   getAlias,
+  getUserIdByAlias,
   getMsgLink,
   getMentionLink,
   getArrayXYSize,
