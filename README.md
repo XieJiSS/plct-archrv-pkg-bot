@@ -1,3 +1,3 @@
-This repo contains the source code of a bot that is used for tracking & maintaining package status for PLCT Arch RISC-V team.
+This repo contains the source code of a bot that is used for tracking & maintaining package status for the PLCT Arch RISC-V team.
 
-See: [USAGE.md](./docs/USAGE.md)
+For guidance on detailed usage and information about hosting / deploying a fork, see: [USAGE.md](./docs/USAGE.md)
