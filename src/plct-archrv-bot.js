@@ -1,4 +1,5 @@
 /* eslint-disable no-case-declarations */
+// @ts-check
 "use strict";
 
 ;(async () => {
@@ -549,14 +550,31 @@ onText(MARK_REGEXP, async (msg, match) => {
   const pkg = match[1];
   const mark = match[2];
   let comment = match[3] ? match[3].trim() : "";
-  if(["ready"].includes(mark)) {
-    comment += " " + getCurrentTimeStr();
-    comment = comment.trim();
-  }
-  
+
   verb("trying to mark", pkg, "as", mark);
   if(comment) {
     verb("with comment", comment);
+  }
+
+  if(mark === "failing") {
+    verb("should not try to manipulate #failing by hand");
+    await sendMessage(chatId, toSafeMd("failing 仅能通过 CI/CD 触发，请考虑使用其它的 mark 替代"), {
+      parse_mode: "MarkdownV2",
+    });
+    return;
+  }
+
+  if(["ready"].includes(mark)) {
+    comment += " " + getCurrentTimeStr();
+    comment = comment.trim();
+    verb("appending current time to comment for #ready");
+    await _unmarkMultiple(pkg, ["failing"], (success, reason) => {
+      if(success) {
+        verb("unmarked #failing triggered by #ready");
+      } else {
+        verb("didn't unmark #failing because", reason);
+      }
+    });
   }
 
   if(!Object.keys(localUtils.MARK2STR).includes(mark)) {
@@ -620,7 +638,7 @@ async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
     });
     packageMarks.sort((pkg1, pkg2) => strcmp(pkg1.name, pkg2.name));
   }
-  storePackageMarks().then(() => callback(true)).catch(err => callback(false, String(err)));
+  await storePackageMarks().then(() => callback(true)).catch(err => callback(false, String(err)));
 }
 
 onText(/^\/mark/, async (msg) => {
@@ -636,6 +654,14 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   const mark = match[2];
 
   verb("trying to unmark", pkg, "'s", mark, "mark");
+
+  if(mark === "failing" && msg.from.id !== ADMIN_ID) {
+    verb("should not try to manipulate #failing by hand");
+    await sendMessage(chatId, toSafeMd("failing 仅能通过 CI/CD 消除"), {
+      parse_mode: "MarkdownV2",
+    });
+    return;
+  }
 
   /**
    * @param {boolean} success
