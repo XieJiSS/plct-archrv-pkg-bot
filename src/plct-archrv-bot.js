@@ -849,13 +849,13 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   await replyMessage(chatId, msgId, statusStr || "该包目前不具有任何标记", { parse_mode: "MarkdownV2" });
 });
 
-onText(/^\/more(?:@[\S]+?)$/, async (msg) => {
+onText(/^\/more(?:@[\S]+?)?$/, async (msg) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   await replyMessage(chatId, msgId, toSafeMd("Usage: /more pkgname"), { parse_mode: "MarkdownV2" });
 });
 
-onText(/^\/popmsg(?:@[\S]+?)$/, (msg) => {
+onText(/^\/popmsg(?:@[\S]+?)?$/, (msg) => {
   const chatId = msg.chat.id;
   markChatThrottledMsgAsSendable(chatId);
 });
