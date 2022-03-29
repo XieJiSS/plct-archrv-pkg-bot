@@ -229,6 +229,18 @@ async function doSendMessage() {
 }
 setTimeout(() => doSendMessage(), 200);
 
+/**
+ * @param {number} chatId
+ */
+function markChatThrottledMsgAsSendable(chatId) {
+  messageQueue.forEach(msg => {
+    if(msg.throttle && Number(msg.chatId) === chatId) {
+      // we still want messages to be merged, so we don't set `throttle` to false directly
+      msg.timestamp = Date.now() - 120e3;
+    }
+  });
+}
+
 // no (throttled) message: sleep 200ms
 // has throttled message: send per chat and sleep 20ms
 /**
@@ -833,6 +845,11 @@ onText(/^\/more(?:@[\S]+?)$/, async (msg) => {
   await replyMessage(chatId, msgId, toSafeMd("Usage: /more pkgname"), { parse_mode: "MarkdownV2" });
 });
 
+onText(/^\/popmsg(?:@[\S]+?)$/, (msg) => {
+  const chatId = msg.chat.id;
+  markChatThrottledMsgAsSendable(chatId);
+});
+
 bot.on("message", (msg) => {
   const text = msg.text;
   if(text && text.startsWith("/")) {
@@ -1098,4 +1115,4 @@ const server = http.createServer((req, res) => {
 
 server.listen(30644);
 
-})();
+})();  // end of the async IIFE wrapper
