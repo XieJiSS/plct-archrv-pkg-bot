@@ -377,7 +377,7 @@ setTimeout(() => doSendThrottleMessage(), 200);
  * @returns {Promise<TelegramBot.Message>}
  */
 function sendMessage(chatId, text, options = {}, throttle = false) {
-  verb(sendMessage, text.slice(0, 25), throttle);
+  verb(sendMessage, "(wrapper)", text.slice(0, 25) + "...", throttle);
   options = Object.assign(Object.assign({}, defaultMessageOption), options);
   // Fallback options in case error occurs
   /**
