@@ -638,7 +638,14 @@ async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
     });
     packageMarks.sort((pkg1, pkg2) => strcmp(pkg1.name, pkg2.name));
   }
-  await storePackageMarks().then(() => callback(true)).catch(err => callback(false, String(err)));
+  try {
+    await storePackageMarks();
+  } catch(err) {
+    callback(false, String(err));
+    return false;
+  }
+  callback(true);
+  return true;
 }
 
 onText(/^\/mark/, async (msg) => {
@@ -652,6 +659,39 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   const msgId = msg.message_id;
   const pkg = match[1];
   const mark = match[2];
+
+  if(mark === "all") {
+    verb("trying to unmark all marks of", pkg);
+    /**
+     * @type {string[]}
+     */
+    const targetMarks = [];
+    if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
+      const marks = packageMarks.filter(obj => obj.name === pkg)[0].marks;
+      targetMarks.push(...marks.map(mark => mark.name).filter(name => !["failing"].includes(name)));
+    }
+    const succ = await _unmarkMultiple(pkg, targetMarks, (succ, reason) => {
+      if(!succ) {
+        verb("unmark all: unmark failed because of", reason);
+        sendMessage(chatId, toSafeMd(`删除标记失败：${reason}`), {
+          parse_mode: "MarkdownV2"
+        });
+      }
+    });
+    if(succ) {
+      let respText = toSafeMd("已成功删除该包的 ");
+      respText += targetMarks.map(mark => wrapCode(mark)).join(" ");
+      respText += toSafeMd(" 标记");
+      sendMessage(chatId, respText, {
+        parse_mode: "MarkdownV2"
+      });
+    } else {
+      sendMessage(chatId, toSafeMd(`未能删除全部标记，请重试`), {
+        parse_mode: "MarkdownV2"
+      });
+    }
+    return;
+  }
 
   verb("trying to unmark", pkg, "'s", mark, "mark");
 
@@ -693,12 +733,17 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 /**
  * @param {string} pkg
  * @param {string[]} marks
- * @param {(success: boolean, reason?: string) => any} callback
+ * @param {(success: boolean, reason?: string) => any} callback will be invoked multiple times!
  */
 async function _unmarkMultiple(pkg, marks, callback) {
+  let allSuccessful = true;
   for(const mark of marks) {
-    await _unmark(pkg, mark, callback);
+    // unmark one-by-one to preserve order
+    if(false === await _unmark(pkg, mark, callback)) {
+      allSuccessful = false;
+    }
   }
+  return allSuccessful;
 }
 
 /**
@@ -717,15 +762,17 @@ async function _unmark(pkg, mark, callback) {
       try {
         await storePackageMarks();
       } catch {
-        return callback(false, "未能写入数据库");
+        callback(false, "未能写入数据库");
+        return false;
       }
-      return callback(true, mark);
-    } else {
-      return callback(false, "该 package 目前未被设定为此状态");
+      callback(true, mark);
+      return true;
     }
-  } else {
-    return callback(false, "表中没有该 package");
+    callback(false, "该 package 目前未被设定为此状态");
+    return false;
   }
+  callback(false, "表中没有该 package");
+  return false;
 }
 
 /**
