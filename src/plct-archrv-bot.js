@@ -248,6 +248,7 @@ function markChatThrottledMsgAsSendable(chatId) {
   } else {
     verb(markChatThrottledMsgAsSendable, "no throttled messages found in chat", chatId);
   }
+  return hasModified;
 }
 
 // no (throttled) message: sleep 200ms
@@ -857,7 +858,12 @@ onText(/^\/more(?:@[\S]+?)?$/, async (msg) => {
 
 onText(/^\/popmsg(?:@[\S]+?)?$/, (msg) => {
   const chatId = msg.chat.id;
-  markChatThrottledMsgAsSendable(chatId);
+  const modified = markChatThrottledMsgAsSendable(chatId);
+  if(!modified) {
+    sendMessage(chatId, toSafeMd("当前群的消息队列中没有 throttled 状态的消息"), {
+      parse_mode: "MarkdownV2"
+    });
+  }
 });
 
 bot.on("message", (msg) => {
