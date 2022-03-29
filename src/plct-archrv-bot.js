@@ -182,6 +182,7 @@ function sendMessageWithRateLimit(chatId, text, throttle, _options, options = {}
       _options,
       throttle,
       timestamp: Date.now(),
+      // pass resolve and reject to messageQueue's consumer
       resolve,
       reject,
     });
@@ -233,12 +234,20 @@ setTimeout(() => doSendMessage(), 200);
  * @param {number} chatId
  */
 function markChatThrottledMsgAsSendable(chatId) {
+  verb(markChatThrottledMsgAsSendable, "marking throttled msgs in chat", chatId, "as sendable...");
+  let hasModified = false;
   messageQueue.forEach(msg => {
     if(msg.throttle && Number(msg.chatId) === chatId) {
+      hasModified = true;
       // we still want messages to be merged, so we don't set `throttle` to false directly
       msg.timestamp = Date.now() - 120e3;
     }
   });
+  if(hasModified) {
+    verb(markChatThrottledMsgAsSendable, "successfully modified messageQueue.");
+  } else {
+    verb(markChatThrottledMsgAsSendable, "no throttled messages found in chat", chatId);
+  }
 }
 
 // no (throttled) message: sleep 200ms
@@ -368,6 +377,7 @@ setTimeout(() => doSendThrottleMessage(), 200);
  * @returns {Promise<TelegramBot.Message>}
  */
 function sendMessage(chatId, text, options = {}, throttle = false) {
+  verb(sendMessage, text.slice(0, 25), throttle);
   options = Object.assign(Object.assign({}, defaultMessageOption), options);
   // Fallback options in case error occurs
   /**
