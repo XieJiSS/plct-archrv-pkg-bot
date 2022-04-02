@@ -512,14 +512,18 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   }
 
   if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
-    await sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${newPackage} 已被认领。`));
-    await sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方认领包`));
+    await sendMessage(process.env["PLCT_CHAT_ID"], `${newPackage} 已被认领。`);
+    await sendMessage(chatId, "deprecated: 不建议在 PLCT 群以外的地方认领包");
   }
 });
 
-onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
+onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
+
+  if(match[1] === "merge") {
+    await replyMessage(chatId, msgId, "/merge has been deprecated. You should wait for CI/CD to trigger an auto-merge.");
+  }
   
   /**
    * @param {boolean} success
@@ -533,7 +537,7 @@ onText(/^\/(?:merge|drop)\s+(\S+)$/, async (msg, match) => {
     }
   }
 
-  _merge(match[1], msg.from.id, mergeCallback);
+  _merge(match[2], msg.from.id, mergeCallback);
 });
 
 /**
