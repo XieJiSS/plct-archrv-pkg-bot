@@ -1093,7 +1093,7 @@ async function routeAddHandler(req, res) {
     const failingLogLink = getErrorLogDirLinkMd(pkgname, "failing");
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已被自动标记为 ${failingLogLink}`), {
+      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已被自动标记为 `) + failingLogLink, {
         parse_mode: "MarkdownV2",
       }, true);
     });
