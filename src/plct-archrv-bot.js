@@ -49,6 +49,7 @@ require("async-exit-hook")(() => {
 const localUtils = require("./utils");
 
 const {
+  _safemd,
   defer,
   equal,
   getAlias,
@@ -1073,7 +1074,7 @@ async function routeAddHandler(req, res) {
     const msgTypeStr = wrapCode("(auto-mark)");
     const failingLogLink = getErrorLogDirLinkMd(pkgname, "is failing");
     // Ping 先输出，剩下的输出全部 defer
-    sendMessage(CHAT_ID, `${msgTypeStr} ping ${link}${toSafeMd(": " + pkgname)} ${failingLogLink}`, {
+    sendMessage(CHAT_ID, _safemd`${msgTypeStr} ping ${link}: ${toSafeMd(pkgname)} ${failingLogLink}`, {
       parse_mode: "MarkdownV2",
     }, true);
   }
@@ -1093,7 +1094,7 @@ async function routeAddHandler(req, res) {
     const failingLogLink = getErrorLogDirLinkMd(pkgname, "failing");
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已被自动标记为 `) + failingLogLink, {
+      sendMessage(CHAT_ID, _safemd`${msgTypeStr} ${toSafeMd(pkgname)} 已被自动标记为 ${failingLogLink}`, {
         parse_mode: "MarkdownV2",
       }, true);
     });

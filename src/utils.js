@@ -357,6 +357,7 @@ function toSafeMd(unsafeMd) {
 /**
  * @param {TemplateStringsArray} unsafeMdArr unsafe markdown v2 texts
  * @param {any[]} safeMdArr
+ * @description Use this with template strings. ```_safemd`unsafe ${"safe"} unsafe2}` ```
  */
 function _safemd(unsafeMdArr, ...safeMdArr) {
   safeMdArr = safeMdArr.map(safeMd => String(safeMd));
