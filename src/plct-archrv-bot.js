@@ -56,6 +56,7 @@ const {
   marksToStringArr,
   getMentionLink,
   getCurrentTimeStr,
+  getErrorLogDirLinkMd,
   findUserIdByPackage,
   findPackageMarksByMarkName,
   findPackageMarksByMarkNamesAndComment,
@@ -1065,13 +1066,14 @@ async function routeAddHandler(req, res) {
 
   const userId = localUtils.findUserIdByPackage(pkgname);
   if(userId === null) {
-    res.write("package not found;");
+    res.write("package not found; ");
   } else {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
     const msgTypeStr = wrapCode("(auto-mark)");
+    const failingLogLink = getErrorLogDirLinkMd(pkgname, "is failing");
     // Ping 先输出，剩下的输出全部 defer
-    sendMessage(CHAT_ID, msgTypeStr + ` ping ${link}${toSafeMd(": " + pkgname + " is failing")}`, {
+    sendMessage(CHAT_ID, `${msgTypeStr} ping ${link}${toSafeMd(": " + pkgname)} ${failingLogLink}`, {
       parse_mode: "MarkdownV2",
     }, true);
   }
@@ -1087,10 +1089,11 @@ async function routeAddHandler(req, res) {
     if(!success) return;
     // 对于已存在 failing 标记的情况，需要更新 comment 内的时间（getCurrentTimeStr()），但不输出
     if(!shouldSendMsg) return;
-    const msgTypeStr = wrapCode("(auto-mark)")
+    const msgTypeStr = wrapCode("(auto-mark)");
+    const failingLogLink = getErrorLogDirLinkMd(pkgname, "failing");
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已被自动标记为 failing`), {
+      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已被自动标记为 ${failingLogLink}`), {
         parse_mode: "MarkdownV2",
       }, true);
     });

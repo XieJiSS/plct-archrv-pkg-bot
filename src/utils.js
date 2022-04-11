@@ -11,6 +11,8 @@ const writeFile = promisify(fs.writeFile);
 
 const verb = require("./_verbose");
 
+const BASE_LOG_DIR = process.env["PLCT_BASE_LOG_DIR"] || "";
+
 /**
  * @type {{ userid: number; username: string | undefined; packages: string[]; }[]}
  */
@@ -305,6 +307,22 @@ function getMentionLink(uid, username, firstName = "", lastName = "", tag = fals
   return `[${userDisplayName}](tg://user?id=${uid})`;
 }
 
+/**
+ * @param {string} pkgname
+ */
+function getErrorLogDirLink(pkgname) {
+  return BASE_LOG_DIR.replace("{pkgname}", pkgname);
+}
+
+/**
+ * @param {string} pkgname
+ * @param {string} unsafeMdText
+ */
+function getErrorLogDirLinkMd(pkgname, unsafeMdText) {
+  const safeMdText = toSafeMd(unsafeMdText);
+  if(!BASE_LOG_DIR) return safeMdText;
+  return `[${safeMdText}](${getErrorLogDirLink(pkgname)})`;
+}
 
 /**
  * @param {any[][]} arr
@@ -717,6 +735,7 @@ module.exports = {
   getUserIdByAlias,
   getMsgLink,
   getMentionLink,
+  getErrorLogDirLinkMd,
   getArrayXYSize,
   sha512hex,
   toSafeMd,
