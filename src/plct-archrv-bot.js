@@ -480,6 +480,10 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const msgId = msg.message_id;
   const newPackage = match[1];
 
+  if(newPackage !== newPackage.toLowerCase()) {
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+  }
+
   verb("trying to add", newPackage);
 
   if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === newPackage)).length) {
@@ -522,9 +526,14 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
 onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
+  const pkg = match[2];
 
   if(match[1] === "merge") {
     await replyMessage(chatId, msgId, "/merge has been deprecated. You should wait for CI/CD to trigger an auto-merge.");
+  }
+
+  if(pkg !== pkg.toLowerCase()) {
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
   }
   
   /**
@@ -539,7 +548,7 @@ onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
     }
   }
 
-  _merge(match[2], msg.from.id, mergeCallback);
+  _merge(pkg, msg.from.id, mergeCallback);
 });
 
 /**
@@ -579,6 +588,10 @@ onText(MARK_REGEXP, async (msg, match) => {
   const pkg = match[1];
   const mark = match[2];
   let comment = match[3] ? match[3].trim() : "";
+
+  if(pkg !== pkg.toLowerCase()) {
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+  }
 
   verb("trying to mark", pkg, "as", mark);
   if(comment) {
@@ -688,6 +701,10 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   const msgId = msg.message_id;
   const pkg = match[1];
   const mark = match[2];
+
+  if(pkg !== pkg.toLowerCase()) {
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+  }
 
   if(mark === "all") {
     verb("trying to unmark all marks of", pkg);
@@ -838,6 +855,10 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const pkgname = match[1];
+
+  if(pkgname !== pkgname.toLowerCase()) {
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+  }
 
   verb("trying to show mark status...");
 
