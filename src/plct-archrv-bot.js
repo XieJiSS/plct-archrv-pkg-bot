@@ -481,7 +481,9 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const newPackage = match[1];
 
   if(newPackage !== newPackage.toLowerCase()) {
-    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
+      parse_mode: "MarkdownV2",
+    });
   }
 
   verb("trying to add", newPackage);
@@ -533,7 +535,9 @@ onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
   }
 
   if(pkg !== pkg.toLowerCase()) {
-    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
+      parse_mode: "MarkdownV2",
+    });
   }
   
   /**
@@ -590,7 +594,9 @@ onText(MARK_REGEXP, async (msg, match) => {
   let comment = match[3] ? match[3].trim() : "";
 
   if(pkg !== pkg.toLowerCase()) {
-    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
+      parse_mode: "MarkdownV2",
+    });
   }
 
   verb("trying to mark", pkg, "as", mark);
@@ -703,7 +709,9 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   const mark = match[2];
 
   if(pkg !== pkg.toLowerCase()) {
-    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
+      parse_mode: "MarkdownV2",
+    });
   }
 
   if(mark === "all") {
@@ -857,7 +865,9 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   const pkgname = match[1];
 
   if(pkgname !== pkgname.toLowerCase()) {
-    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`));
+    await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
+      parse_mode: "MarkdownV2",
+    });
   }
 
   verb("trying to show mark status...");
