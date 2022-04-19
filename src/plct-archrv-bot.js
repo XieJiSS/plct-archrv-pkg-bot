@@ -910,6 +910,13 @@ onText(/^\/getlog(?:@[\S]+?)?\s+(\S+)$/, async (msg, match) => {
   sendMessage(chatId, logLink, { parse_mode: "MarkdownV2" });
 });
 
+onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
+  const chatId = msg.chat.id;
+  const msgId = msg.message_id;
+  await replyMessage(chatId, msgId, toSafeMd("Usage: /getlog pkgname"), { parse_mode: "MarkdownV2" });
+});
+
+
 bot.on("message", (msg) => {
   const text = msg.text;
   if(text && text.startsWith("/")) {
