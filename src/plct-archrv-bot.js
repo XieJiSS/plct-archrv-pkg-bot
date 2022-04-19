@@ -903,6 +903,13 @@ onText(/^\/popmsg(?:@[\S]+?)?$/, (msg) => {
   }
 });
 
+onText(/^\/getlog(?:@[\S]+?)?\s+(\S+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const pkgname = match[1];
+  const logLink = getErrorLogDirLinkMd(pkgname, `${pkgname}'s log can probably be found here.`);
+  sendMessage(chatId, logLink, { parse_mode: "MarkdownV2" });
+});
+
 bot.on("message", (msg) => {
   const text = msg.text;
   if(text && text.startsWith("/")) {
