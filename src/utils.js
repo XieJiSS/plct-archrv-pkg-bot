@@ -349,6 +349,25 @@ function findPackageMarksByMarkName(mark) {
 }
 
 /**
+ * @param {string} pkgname
+ */
+ function getPackageMarksByPkgname(pkgname) {
+  // prune empty entries. Not doing real work, thus we can save it later
+  inplaceFilter(packageMarks, pkg => pkg.marks.length > 0);
+
+  const pkgObj = packageMarks.find(pkg => pkg.name === pkgname);
+  if(!pkgObj) return [];
+  return pkgObj.marks;
+}
+
+/**
+ * @param {string} pkgname
+ */
+ function getPackageMarkNamesByPkgname(pkgname) {
+  return getPackageMarksByPkgname(pkgname).map(mark => mark.name);
+}
+
+/**
  * @param {string} comment
  */
 function findPackageMarksByComment(comment) {
@@ -837,6 +856,8 @@ module.exports = {
   markToString,
   markToStringWithSource,
   findUserIdByPackage,
+  getPackageMarksByPkgname,
+  getPackageMarkNamesByPkgname,
   findPackageMarksByComment,
   findPackageMarksByMarkName,
   findPackageMarksByMarkNamesAndComment,

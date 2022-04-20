@@ -60,6 +60,7 @@ const {
   getErrorLogDirLinkMd,
   getMarkConfig,
   findUserIdByPackage,
+  getPackageMarkNamesByPkgname,
   findPackageMarksByMarkName,
   findPackageMarksByMarkNamesAndComment,
   toSafeMd,
@@ -610,7 +611,7 @@ onText(MARK_REGEXP, async (msg, match) => {
 
   if(comment === "" && markConfig.requireComment) {
     verb(`mark ${mark} requires comment.`);
-    await sendMessage(chatId, toSafeMd(`标记 ${mark} 需要提供额外说明。`), {
+    await sendMessage(chatId, toSafeMd(`标记为 ${mark} 需要提供额外说明。`), {
       parse_mode: "MarkdownV2",
     });
     return;
@@ -634,24 +635,26 @@ onText(MARK_REGEXP, async (msg, match) => {
     return await showMarkHelp(chatId);
   }
 
-  const mentionLink = getMentionLink(msg.from.id, null, msg.from.first_name, msg.from.last_name, false);
+  const mentionLink = getMentionLink(userId, null, msg.from.first_name, msg.from.last_name, false);
 
+  // cascading marks & unmarks
   if(markConfig.triggers.length > 0) {
+    const currMarks = getPackageMarkNamesByPkgname(pkg);
     const shouldMark = [], shouldUnmark = [];
     for(const trigger of markConfig.triggers) {
       if(trigger.when !== "mark") {
         continue;
       }
-      if(trigger.op === "mark") {
+      if(trigger.op === "mark" && !currMarks.includes(trigger.name)) {
         shouldMark.push(trigger.name);
-      } else if(trigger.op === "unmark") {
+      } else if(trigger.op === "unmark" && currMarks.includes(trigger.name)) {
         shouldUnmark.push(trigger.name);
       }
     }
     if(shouldMark.length > 0) {
       verb(`triggered by this mark: should also mark`, shouldMark);
       const prefix = wrapCode("(auto-mark)");
-      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
+      await sendMessage(chatId, prefix + toSafeMd(` ${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
         parse_mode: "MarkdownV2",
       });
       const comments = [];
@@ -665,7 +668,7 @@ onText(MARK_REGEXP, async (msg, match) => {
     if(shouldUnmark.length > 0) {
       verb(`triggered by this mark: should also unmark`, shouldUnmark);
       const prefix = wrapCode("(auto-unmark)");
-      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
+      await sendMessage(chatId, prefix + toSafeMd(` ${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
         parse_mode: "MarkdownV2",
       });
       // we don't care whether triggered unmarks are updated successfully or not,
@@ -841,14 +844,15 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 
   // cascading marks & unmarks
   if(markConfig.triggers.length > 0) {
+    const currMarks = getPackageMarkNamesByPkgname(pkg);
     const shouldMark = [], shouldUnmark = [];
     for(const trigger of markConfig.triggers) {
       if(trigger.when !== "unmark") {
         continue;
       }
-      if(trigger.op === "mark") {
+      if(trigger.op === "mark" && !currMarks.includes(trigger.name)) {
         shouldMark.push(trigger.name);
-      } else if(trigger.op === "unmark") {
+      } else if(trigger.op === "unmark" && currMarks.includes(trigger.name)) {
         shouldUnmark.push(trigger.name);
       }
     }
