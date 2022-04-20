@@ -38,19 +38,18 @@ loadPackageMarks();
 const packageMarks = _packageMarksForInit;
 
 /**
- * @type {Object<string, string | undefined>}
+ * @type {Record<string, string | undefined>}
  */
 let aliasMap = {};
 
 /**
- * @type {
-  Record<string, {
-    desc: string;
-    requireComment: boolean;
-    allowUserModification: { mark: boolean; unmark: boolean; };
-    appendTimeComment: boolean;
-    triggers: { name: string, op: "mark" | "unmark", when: "mark" | "unmark" }[];
-  }>}
+ * @type {Record<string, {
+      desc: string;
+      requireComment: boolean;
+      allowUserModification: { mark: boolean; unmark: boolean; };
+      appendTimeComment: boolean;
+      triggers: { name: string, op: "mark" | "unmark", when: "mark" | "unmark" }[];
+    }>}
  */
 const MARK_CONFIG = {
   unknown: {
@@ -148,7 +147,7 @@ const MARK_CONFIG = {
 };
 
 /**
- * @type {Object<string, string>}
+ * @type {Record<string, string>}
  */
 const MARK2STR = objectMap(MARK_CONFIG, v => v.desc);
 
@@ -759,7 +758,7 @@ function equal(a, b) {
 }
 
 /**
- * @type {Object.<string, Function[]>}
+ * @type {Record<string, Function[]>}
  */
 const deferMap = Object.create(null);
 
