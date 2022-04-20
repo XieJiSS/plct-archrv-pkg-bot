@@ -43,24 +43,133 @@ const packageMarks = _packageMarksForInit;
 let aliasMap = {};
 
 /**
+ * @type {
+  Record<string, {
+    desc: string;
+    requireComment: boolean;
+    allowUserModification: { mark: boolean; unmark: boolean; };
+    appendTimeComment: boolean;
+    triggers: { name: string, op: "mark" | "unmark", when: "mark" | "unmark" }[];
+  }>}
+ */
+const MARK_CONFIG = {
+  unknown: {
+    desc: "特殊状态，请咨询认领人",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false,
+    triggers: [],
+  },
+  upstreamed: {
+    desc: "等待上游",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false,
+    triggers: [],
+  },
+  outdated: {
+    desc: "需要滚版本",
+    requireComment: false,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false, // must be false for auto-unmark by pkgname to work properly
+    triggers: [],
+  },
+  outdated_dep: {
+    desc: "需要滚依赖版本",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false, // must be false for auto-unmark by pkgname to work properly
+    triggers: [],
+  },
+  stuck: {
+    desc: "无进展",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false,
+    triggers: [],
+  },
+  noqemu: {
+    desc: "仅在板子上编译成功",
+    requireComment: false,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false,
+    triggers: [],
+  },
+  ready: {
+    desc: "无需操作即可从上游编译",
+    requireComment: false,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: true,
+    triggers: [
+      { name: "failing",      op: "unmark", when: "mark" },
+      { name: "flaky",        op: "unmark", when: "mark" },
+    ],
+  },
+  ignore: {
+    desc: "不适用于 riscv64",
+    requireComment: false,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false,
+    triggers: [
+      { name: "failing",      op: "unmark", when: "mark" },
+      { name: "flaky",        op: "unmark", when: "mark" },
+      { name: "ready",        op: "unmark", when: "mark" },
+      { name: "missing_dep",  op: "unmark", when: "mark" },
+      { name: "outdated_dep", op: "unmark", when: "mark" },
+      { name: "outdated",     op: "unmark", when: "mark" },
+      { name: "noqemu",       op: "unmark", when: "mark" },
+    ],
+  },
+  missing_dep: {
+    desc: "缺依赖",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false, // must be false for auto-unmark by pkgname to work properly
+    triggers: [],
+  },
+  flaky: {
+    desc: "可能需要多次打包才能成功",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: false,
+    triggers: [
+      { name: "ready",        op: "unmark", when: "mark" },
+    ],
+  },
+  failing: {
+    desc: "被自动标记为编译失败",
+    requireComment: false,
+    allowUserModification: { mark: false, unmark: false },
+    appendTimeComment: true,
+    triggers: [
+      { name: "ready",        op: "unmark", when: "mark" },
+    ],
+  },
+};
+
+/**
  * @type {Object<string, string>}
  */
-const MARK2STR = {
-  unknown: "特殊状态，请咨询认领人",
-  upstreamed: "等待上游",
-  outdated: "需要滚版本",
-  outdated_dep: "需要滚依赖版本",
-  stuck: "无进展",
-  noqemu: "仅在板子上编译成功",
-  ready: "无需操作即可从上游编译",
-  ignore: "不适用于 riscv64",
-  missing_dep: "缺依赖",
-  failing: "被自动标记为编译失败",
-};
+const MARK2STR = objectMap(MARK_CONFIG, v => v.desc);
 
 const MAX_SLEEP_TIME = 2147483647;  // to avoid TimeoutOverflowWarning
 const TZ = +8;  // UTC+8
 
+
+/**
+ * @template T
+ * @template U
+ * @param {Record<string, T>} obj
+ * @param {(value: T, key?: string, index?: number) => U} fn
+ * @returns {Record<string, U>}
+ */
+function objectMap(obj, fn) {
+  return Object.fromEntries(
+    Object.entries(obj).map(
+      ([k, v], i) => [k, fn(v, k, i)]
+    )
+  );
+}
 
 /**
  * @param {number} ms
@@ -185,6 +294,13 @@ function loadAlias() {
   }
 }
 loadAlias();
+
+/**
+ * @param {string} markName
+ */
+function getMarkConfig(markName) {
+  return MARK_CONFIG[markName];
+}
 
 /**
  * @param {number} uid
@@ -732,6 +848,7 @@ module.exports = {
   storePackageMarksSync,
   getTodayTimestamp,
   getCurrentTimeStr,
+  getMarkConfig,
   getAlias,
   getUserIdByAlias,
   getMsgLink,

@@ -58,6 +58,7 @@ const {
   getMentionLink,
   getCurrentTimeStr,
   getErrorLogDirLinkMd,
+  getMarkConfig,
   findUserIdByPackage,
   findPackageMarksByMarkName,
   findPackageMarksByMarkNamesAndComment,
@@ -100,6 +101,7 @@ Array.prototype.remove = function (value) {
 
 const bot = new TelegramBot(token, { polling: true });
 const BOT_ID = await bot.getMe().then((me) => me.id);
+const BOT_MENTION_LINK = getMentionLink(BOT_ID, null, "null");
 process.env["BOT_ID"] = String(BOT_ID);
 
 const ADMIN_ID = Number(process.env["PLCT_BOT_ADMIN_USERID"]);
@@ -604,25 +606,28 @@ onText(MARK_REGEXP, async (msg, match) => {
     verb("with comment", comment);
   }
 
-  if(mark === "failing") {
-    verb("should not try to manipulate #failing by hand");
-    await sendMessage(chatId, toSafeMd("failing 仅能通过 CI/CD 触发，请考虑使用其它的 mark 替代"), {
+  const markConfig = getMarkConfig(mark);
+
+  if(comment === "" && markConfig.requireComment) {
+    verb(`mark ${mark} requires comment.`);
+    await sendMessage(chatId, toSafeMd(`标记 ${mark} 需要提供额外说明。`), {
       parse_mode: "MarkdownV2",
     });
     return;
   }
 
-  if(["ready"].includes(mark)) {
+  if(!markConfig.allowUserModification.mark) {
+    verb(`should not try to mark #${mark} by hand`);
+    await sendMessage(chatId, toSafeMd(`标记 ${mark} 不允许手动添加，请考虑使用其它的 mark 替代`), {
+      parse_mode: "MarkdownV2",
+    });
+    return;
+  }
+
+  if(markConfig.appendTimeComment) {
+    verb(`appending current time to comment for #${mark}`);
     comment += " " + getCurrentTimeStr();
     comment = comment.trim();
-    verb("appending current time to comment for #ready");
-    await _unmarkMultiple(pkg, ["failing"], (success, reason) => {
-      if(success) {
-        verb("unmarked #failing triggered by #ready");
-      } else {
-        verb("didn't unmark #failing because", reason);
-      }
-    });
   }
 
   if(!Object.keys(localUtils.MARK2STR).includes(mark)) {
@@ -630,6 +635,44 @@ onText(MARK_REGEXP, async (msg, match) => {
   }
 
   const mentionLink = getMentionLink(msg.from.id, null, msg.from.first_name, msg.from.last_name, false);
+
+  if(markConfig.triggers.length > 0) {
+    const shouldMark = [], shouldUnmark = [];
+    for(const trigger of markConfig.triggers) {
+      if(trigger.when !== "mark") {
+        continue;
+      }
+      if(trigger.op === "mark") {
+        shouldMark.push(trigger.name);
+      } else if(trigger.op === "unmark") {
+        shouldUnmark.push(trigger.name);
+      }
+    }
+    if(shouldMark.length > 0) {
+      verb(`triggered by this mark: should also mark`, shouldMark);
+      const prefix = wrapCode("(auto-mark)");
+      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
+        parse_mode: "MarkdownV2",
+      });
+      const comments = [];
+      for(let _ = 0; _ < shouldMark.length; _++) {
+        comments.push(`cascading mark triggered by marking ${mark}`);
+      }
+      // we don't care whether triggered marks are updated successfully or not,
+      // so use a dummy callback
+      await _markMultiple(pkg, userId, mentionLink, shouldMark, comments, () => {});
+    }
+    if(shouldUnmark.length > 0) {
+      verb(`triggered by this mark: should also unmark`, shouldUnmark);
+      const prefix = wrapCode("(auto-unmark)");
+      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
+        parse_mode: "MarkdownV2",
+      });
+      // we don't care whether triggered unmarks are updated successfully or not,
+      // so use a dummy callback
+      await _unmarkMultiple(pkg, shouldUnmark, () => {});
+    }
+  }
 
   /**
    * @param {boolean} success
@@ -696,6 +739,36 @@ async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
   return true;
 }
 
+/**
+ * @param {string} pkg
+ * @param {number} userId
+ * @param {string} mentionLink
+ * @param {string[]} marks
+ * @param {string[]} comments matching `marks` respectively
+ * @param {(success: boolean, reason?: string) => any} callback will be invoked multiple times!
+ */
+ async function _markMultiple(pkg, userId, mentionLink, marks, comments, callback) {
+  let allSuccessful = true;
+  if(!userId) {
+    userId = BOT_ID;
+  }
+  for(let i = 0; i < marks.length; i++) {
+    const mark = marks[i];
+    let comment = comments[i] || "";
+    const markConfig = getMarkConfig(mark);
+    // we only care abot appendTimeComment here
+    if(markConfig.appendTimeComment) {
+      comment += " " + getCurrentTimeStr();
+      comment = comment.trim();
+    }
+    // mark one-by-one to preserve order
+    if(false === await _mark(pkg, mark, comment, userId, mentionLink, callback)) {
+      allSuccessful = false;
+    }
+  }
+  return allSuccessful;
+}
+
 onText(/^\/mark/, async (msg) => {
   const chatId = msg.chat.id;
   if(MARK_REGEXP.test(msg.text)) return;
@@ -705,6 +778,7 @@ onText(/^\/mark/, async (msg) => {
 onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
+  const userId = msg.from.id;
   const pkg = match[1];
   const mark = match[2];
 
@@ -722,8 +796,12 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
     const targetMarks = [];
     if(packageMarks.filter(obj => obj.name === pkg).length > 0) {
       const marks = packageMarks.filter(obj => obj.name === pkg)[0].marks;
-      targetMarks.push(...marks.map(mark => mark.name).filter(name => !["failing"].includes(name)));
+      targetMarks.push(...marks.map(mark => mark.name).filter(name => {
+        const markConfig = getMarkConfig(name);
+        return markConfig.allowUserModification.unmark;
+      }));
     }
+    // we don't care about cascading unmarks for the "all" directive
     const succ = await _unmarkMultiple(pkg, targetMarks, (succ, reason) => {
       if(!succ) {
         verb("unmark all: unmark failed because of", reason);
@@ -749,12 +827,55 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
 
   verb("trying to unmark", pkg, "'s", mark, "mark");
 
-  if(mark === "failing" && msg.from.id !== ADMIN_ID) {
-    verb("should not try to manipulate #failing by hand");
-    await sendMessage(chatId, toSafeMd("failing 仅能通过 CI/CD 消除"), {
+  const markConfig = getMarkConfig(mark);
+
+  if(!markConfig.allowUserModification.unmark && msg.from.id !== ADMIN_ID) {
+    verb(`should not try to unmark #${mark} by hand`);
+    await sendMessage(chatId, toSafeMd(`标记 ${mark} 被配置为不允许手动清除`), {
       parse_mode: "MarkdownV2",
     });
     return;
+  }
+
+  const mentionLink = getMentionLink(userId, null, msg.from.first_name, msg.from.last_name, false);
+
+  // cascading marks & unmarks
+  if(markConfig.triggers.length > 0) {
+    const shouldMark = [], shouldUnmark = [];
+    for(const trigger of markConfig.triggers) {
+      if(trigger.when !== "unmark") {
+        continue;
+      }
+      if(trigger.op === "mark") {
+        shouldMark.push(trigger.name);
+      } else if(trigger.op === "unmark") {
+        shouldUnmark.push(trigger.name);
+      }
+    }
+    if(shouldMark.length > 0) {
+      verb(`triggered by this mark: should also mark`, shouldMark);
+      const prefix = wrapCode("(auto-mark)");
+      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
+        parse_mode: "MarkdownV2",
+      });
+      const comments = [];
+      for(let _ = 0; _ < shouldMark.length; _++) {
+        comments.push(`cascading mark triggered by unmarking ${mark}`);
+      }
+      // we don't care whether triggered marks are updated successfully or not,
+      // so use a dummy callback
+      await _markMultiple(pkg, userId, mentionLink, shouldMark, comments, () => {});
+    }
+    if(shouldUnmark.length > 0) {
+      verb(`triggered by this mark: should also unmark`, shouldUnmark);
+      const prefix = wrapCode("(auto-unmark)");
+      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
+        parse_mode: "MarkdownV2",
+      });
+      // we don't care whether triggered unmarks are updated successfully or not,
+      // so use a dummy callback
+      await _unmarkMultiple(pkg, shouldUnmark, () => {});
+    }
   }
 
   /**
@@ -1024,7 +1145,7 @@ async function routeDeleteHandler(req, res) {
     const mentionLinkSet = new Set();
     for(const mark of pkg.marks.slice()) {
       if(!refMarks.includes(mark.name)) continue;
-      let mentionLink = getMentionLink(BOT_ID, null, "null");
+      let mentionLink = BOT_MENTION_LINK;
       if(mark.by) {
         // we don't use mark.by.url here, because it is based on tg name but we want alias
         mentionLink = getMentionLink(mark.by.uid, null, getAlias(mark.by.uid));
@@ -1126,7 +1247,7 @@ async function routeAddHandler(req, res) {
 
   const deferKey = crypto.randomBytes(16).toString("hex");
 
-  const mentionLink = getMentionLink(BOT_ID, null, "null");
+  const mentionLink = BOT_MENTION_LINK;
   let shouldSendMsg = true;
   if(findPackageMarksByMarkName("failing").filter(pkg => pkg.name === pkgname).length > 0) {
     shouldSendMsg = false;
