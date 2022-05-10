@@ -1041,6 +1041,13 @@ onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
   await replyMessage(chatId, msgId, toSafeMd("Usage: /getlog pkgname"), { parse_mode: "MarkdownV2" });
 });
 
+onText(/^\/reloadalias(?:@[\S]+?)?$/, async (msg) => {
+  const chatId = msg.chat.id;
+  if(chatId.toString() !== CHAT_ID) {
+    return;
+  }
+  await localUtils.loadAlias();
+});
 
 bot.on("message", (msg) => {
   const text = msg.text;
