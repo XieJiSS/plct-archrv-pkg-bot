@@ -1133,7 +1133,7 @@ async function routeDeleteHandler(req, res) {
     if(!success) {
       return;
     }
-    // for sucess === true, `reason` is the name of the modified mark
+    // for success === true, `reason` is the name of the modified mark
     const mark = reason;
     const msgTypeStr = wrapCode("(auto-unmark)");
     // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
@@ -1182,7 +1182,7 @@ async function routeDeleteHandler(req, res) {
         verb(routeDeleteHandler, "(auto) partial match:", pkgname, "in", pkg.name, mark.name, mark.comment);
         const safePkgname = escapeRegExp(pkgname);
         const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
-        verb(routeDeleteHandler, "builded regexp name:", safePkgname, "-> new comment:", comment);
+        verb(routeDeleteHandler, "built regexp name:", safePkgname, "-> new comment:", comment);
         await _mark(pkg.name, mark.name, comment, uid, mentionLink, (success, _) => {
           if(!success) {
             verb(routeDeleteHandler, "failed to mark", pkg.name, mark.name, mark.comment, _);
@@ -1279,7 +1279,7 @@ async function routeAddHandler(req, res) {
 
   await _unmarkMultiple(pkgname, ["ready"], (success, reason) => {
     if(!success) return;
-    // for sucess === true, `reason` is the name of the modified mark
+    // for success === true, `reason` is the name of the modified mark
     const mark = reason;
     const msgTypeStr = wrapCode("(auto-unmark)")
     // defer 输出
