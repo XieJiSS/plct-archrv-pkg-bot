@@ -1041,6 +1041,35 @@ onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
   await replyMessage(chatId, msgId, toSafeMd("Usage: /getlog pkgname"), { parse_mode: "MarkdownV2" });
 });
 
+const usage = new Map([
+  ["unknown", "这个包还有未知的问题没解决"],
+  ["upstreamed", "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游"],
+  ["outdated", "这个包因为版本原因无法出包"],
+  ["outdated_dep", "这个包因为某个依赖版本的原因无法出包"],
+  ["stuck", "这个包处理起来非常棘手，短时间内无法修复"],
+  ["noqemu", "这个包仅在 qemu-user 环境里构建失败"],
+  ["ready", "可以直接出包，如果是打了 patch 之后才能出包的就不用标，把 PR 提交了等肥猫构建即可"],
+  ["ignore", "这个包在 riscv64 打包出来没有意义。比如一些 x86_64 专用的软件"],
+  ["missing_dep", "缺少依赖导致无法构建"],
+  ["flaky", "这个包偶尔会失败，要让肥猫多试几次"],
+  ["failing", "这个包上次构建失败(无需手动标记)"],
+]);
+
+onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg) => {
+  const chatId = msg.chat.id;
+  const msgId = msg.message_id;
+  const marker = match[1];
+
+  if (usage.has(marker)) {
+    const message = "Usage for {0}: {1}".format(marker, usage.get(marker));
+    await replyMessage(chatId, msgId, message);
+  } else {
+    const fallback = "Unknow mark: {0},\n \
+    Available: unknown, upstreamed, outdated, outdated_dep, stuck, noqemu, ready, ignore, missing_dep, flaky, failing";
+    await replyMessage(chatId, msgId, fallback);
+  }
+});
+
 
 bot.on("message", (msg) => {
   const text = msg.text;
