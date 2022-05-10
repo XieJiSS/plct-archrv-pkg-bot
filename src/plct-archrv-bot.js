@@ -1042,7 +1042,7 @@ onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
 });
 
 const usage = new Map([
-  ["unknown", "这个包还有未知的问题没解决"],
+  ["unknown", "这个包还有未知的问题没解决，在其他 tag 都不适用的情况下用。使用时要记得补充说明"],
   ["upstreamed", "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游"],
   ["outdated", "这个包因为版本原因无法出包"],
   ["outdated_dep", "这个包因为某个依赖版本的原因无法出包"],
