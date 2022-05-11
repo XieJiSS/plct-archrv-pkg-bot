@@ -1052,7 +1052,7 @@ const usage = new Map([
   ["ignore", "这个包在 riscv64 打包出来没有意义。比如一些 x86_64 专用的软件"],
   ["missing_dep", "缺少依赖导致无法构建"],
   ["flaky", "这个包偶尔会失败，要让肥猫多试几次"],
-  ["failing", "这个包上次构建失败(无需手动标记)"],
+  ["failing", "这个包上次构建失败（无需手动标记）"],
 ]);
 
 onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg) => {
@@ -1060,14 +1060,14 @@ onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg) => {
   const msgId = msg.message_id;
   const marker = match[1];
 
+  let resp = "";
   if (usage.has(marker)) {
-    const message = "Usage for {0}: {1}".format(marker, usage.get(marker));
-    await replyMessage(chatId, msgId, message);
+    resp = `Usage for ${marker}: ${usage.get(marker)}`;
   } else {
-    const fallback = "Unknow mark: {0},\n \
-    Available: unknown, upstreamed, outdated, outdated_dep, stuck, noqemu, ready, ignore, missing_dep, flaky, failing";
-    await replyMessage(chatId, msgId, fallback);
+    resp = `Unknow mark: ${marker}\n\nAvailable: ${Array.from(usage.keys()).join(", ")}`
   }
+
+  await replyMessage(chatId, msgId, resp);
 });
 
 
