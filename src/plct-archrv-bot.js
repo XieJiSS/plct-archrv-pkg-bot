@@ -478,6 +478,20 @@ async function replyAndDeleteAfter(chatId, msgId, text, ms, options = {}) {
 //  --------- TelegramBot related functions end ----------  //
 
 
+const usage = new Map([
+  ["unknown", "这个包还有未知的问题没解决，在其他 tag 都不适用的情况下用。使用时要记得补充说明"],
+  ["upstreamed", "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游"],
+  ["outdated", "这个包因为版本原因无法出包"],
+  ["outdated_dep", "这个包因为某个依赖版本的原因无法出包"],
+  ["stuck", "这个包处理起来非常棘手，短时间内无法修复"],
+  ["noqemu", "这个包仅在 qemu-user 环境里构建失败"],
+  ["ready", "可以直接出包，如果是打了 patch 之后才能出包的就不用标，把 PR 提交了等肥猫构建即可"],
+  ["ignore", "这个包在 riscv64 打包出来没有意义。比如一些 x86_64 专用的软件"],
+  ["missing_dep", "缺少依赖导致无法构建"],
+  ["flaky", "这个包偶尔会失败，要让肥猫多试几次"],
+  ["failing", "这个包上次构建失败（无需手动标记）"],
+]);
+
 onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
@@ -1041,20 +1055,6 @@ onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
   await replyMessage(chatId, msgId, toSafeMd("Usage: /getlog pkgname"), { parse_mode: "MarkdownV2" });
 });
 
-const usage = new Map([
-  ["unknown", "这个包还有未知的问题没解决，在其他 tag 都不适用的情况下用。使用时要记得补充说明"],
-  ["upstreamed", "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游"],
-  ["outdated", "这个包因为版本原因无法出包"],
-  ["outdated_dep", "这个包因为某个依赖版本的原因无法出包"],
-  ["stuck", "这个包处理起来非常棘手，短时间内无法修复"],
-  ["noqemu", "这个包仅在 qemu-user 环境里构建失败"],
-  ["ready", "可以直接出包，如果是打了 patch 之后才能出包的就不用标，把 PR 提交了等肥猫构建即可"],
-  ["ignore", "这个包在 riscv64 打包出来没有意义。比如一些 x86_64 专用的软件"],
-  ["missing_dep", "缺少依赖导致无法构建"],
-  ["flaky", "这个包偶尔会失败，要让肥猫多试几次"],
-  ["failing", "这个包上次构建失败（无需手动标记）"],
-]);
-
 onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
@@ -1070,6 +1070,13 @@ onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg) => {
   await replyMessage(chatId, msgId, resp);
 });
 
+onText(/^\/reloadalias(?:@[\S]+?)?$/, async (msg) => {
+  const chatId = msg.chat.id;
+  if(chatId.toString() !== CHAT_ID) {
+    return;
+  }
+  await localUtils.loadAlias();
+});
 
 bot.on("message", (msg) => {
   const text = msg.text;
@@ -1155,7 +1162,7 @@ async function routeDeleteHandler(req, res) {
     if(!success) {
       return;
     }
-    // for sucess === true, `reason` is the name of the modified mark
+    // for success === true, `reason` is the name of the modified mark
     const mark = reason;
     const msgTypeStr = wrapCode("(auto-unmark)");
     // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
@@ -1204,7 +1211,7 @@ async function routeDeleteHandler(req, res) {
         verb(routeDeleteHandler, "(auto) partial match:", pkgname, "in", pkg.name, mark.name, mark.comment);
         const safePkgname = escapeRegExp(pkgname);
         const comment = mark.comment.replace(new RegExp("\\[" + safePkgname + "\\]", "i"), "").trim();
-        verb(routeDeleteHandler, "builded regexp name:", safePkgname, "-> new comment:", comment);
+        verb(routeDeleteHandler, "built regexp name:", safePkgname, "-> new comment:", comment);
         await _mark(pkg.name, mark.name, comment, uid, mentionLink, (success, _) => {
           if(!success) {
             verb(routeDeleteHandler, "failed to mark", pkg.name, mark.name, mark.comment, _);
@@ -1301,7 +1308,7 @@ async function routeAddHandler(req, res) {
 
   await _unmarkMultiple(pkgname, ["ready"], (success, reason) => {
     if(!success) return;
-    // for sucess === true, `reason` is the name of the modified mark
+    // for success === true, `reason` is the name of the modified mark
     const mark = reason;
     const msgTypeStr = wrapCode("(auto-unmark)")
     // defer 输出

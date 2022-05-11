@@ -5,6 +5,7 @@ const assert = require("assert");
 const crypto = require("crypto");
 const _equal = require("deep-equal");
 const fs = require("fs");
+const { readFile } = require("fs/promises");
 const { promisify } = require("util");
 const unlink = promisify(fs.unlink);
 const writeFile = promisify(fs.writeFile);
@@ -38,9 +39,9 @@ loadPackageMarks();
 const packageMarks = _packageMarksForInit;
 
 /**
- * @type {Record<string, string | undefined>}
+ * @type {Record<string, string>}
  */
-let aliasMap = {};
+const aliasMap = {};
 
 /**
  * @type {Record<string, {
@@ -284,12 +285,20 @@ function _updatePackageMarkSchema(oldPackageMarks) {
   });
 }
 
-function loadAlias() {
+async function loadAlias() {
   verb(loadAlias);
   try {
-    aliasMap = require("../config/alias.json");
+    /**
+     * @type {Record<string, string>}
+     */
+    const _aliasMap = JSON.parse(await readFile("../config/alias.json", "utf8"));
+    for(const uid in _aliasMap) {
+      if(_aliasMap.hasOwnProperty(uid)) {
+        aliasMap[uid] = _aliasMap[uid];
+      }
+    }
   } catch(e) {
-    aliasMap = {};
+    verb(loadAlias, e.message);
   }
 }
 loadAlias();
@@ -862,6 +871,7 @@ module.exports = {
   findPackageMarksByMarkName,
   findPackageMarksByMarkNamesAndComment,
   forceResplitLines,
+  loadAlias,
   storePackageStatus,
   storePackageStatusSync,
   storePackageMarks,
