@@ -14,6 +14,8 @@
 
 + `/status`
 
++ `/help [mark]`
+
 ## Integration
 
 + [cubercsl/archrv-pkg-notification-bot](https://github.com/cubercsl/archrv-pkg-notification-bot)
