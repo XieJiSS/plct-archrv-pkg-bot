@@ -46,6 +46,7 @@ const aliasMap = {};
 /**
  * @type {Record<string, {
       desc: string;
+      helpMsg: string;
       requireComment: boolean;
       allowUserModification: { mark: boolean; unmark: boolean; };
       appendTimeComment: boolean;
@@ -55,6 +56,7 @@ const aliasMap = {};
 const MARK_CONFIG = {
   unknown: {
     desc: "特殊状态，请咨询认领人",
+    helpMsg: "这个包还有未知的问题没解决，在其他 tag 都不适用的情况下用。使用时要记得补充说明",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false,
@@ -62,6 +64,7 @@ const MARK_CONFIG = {
   },
   upstreamed: {
     desc: "等待上游",
+    helpMsg: "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false,
@@ -69,6 +72,7 @@ const MARK_CONFIG = {
   },
   outdated: {
     desc: "需要滚版本",
+    helpMsg: "这个包因为版本过时的原因无法出包",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false, // must be false for auto-unmark by pkgname to work properly
@@ -76,6 +80,7 @@ const MARK_CONFIG = {
   },
   outdated_dep: {
     desc: "需要滚依赖版本",
+    helpMsg: "这个包因为某个依赖版本过时的原因无法出包",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false, // must be false for auto-unmark by pkgname to work properly
@@ -83,6 +88,7 @@ const MARK_CONFIG = {
   },
   stuck: {
     desc: "无进展",
+    helpMsg: "这个包处理起来非常棘手，短时间内无法修复",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false,
@@ -90,6 +96,7 @@ const MARK_CONFIG = {
   },
   noqemu: {
     desc: "仅在板子上编译成功",
+    helpMsg: "这个包仅在 qemu-user 环境里构建失败",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false,
@@ -97,6 +104,7 @@ const MARK_CONFIG = {
   },
   ready: {
     desc: "无需操作即可从上游编译",
+    helpMsg: "可以直接出包。注意：打了 patch 之后才能出包的不适用本标记。",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: true,
@@ -107,6 +115,7 @@ const MARK_CONFIG = {
   },
   ignore: {
     desc: "不适用于 riscv64",
+    helpMsg: "该包对 riscv64 无意义。",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false,
@@ -121,14 +130,16 @@ const MARK_CONFIG = {
     ],
   },
   missing_dep: {
-    desc: "缺依赖",
+    desc: "缺少依赖",
+    helpMsg: "这个包的依赖目前缺失，导致无法出包",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false, // must be false for auto-unmark by pkgname to work properly
     triggers: [],
   },
   flaky: {
-    desc: "可能需要多次打包才能成功",
+    desc: "概率性编译失败",
+    helpMsg: "这个包可能需要多次打包才能成功",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
     appendTimeComment: false,
@@ -138,6 +149,7 @@ const MARK_CONFIG = {
   },
   failing: {
     desc: "被自动标记为编译失败",
+    helpMsg: "CI/CD 报告称这个包编译失败，无法出包。注意：不要手动修改此标记。",
     requireComment: false,
     allowUserModification: { mark: false, unmark: false },
     appendTimeComment: true,
@@ -307,7 +319,14 @@ loadAlias();
  * @param {string} markName
  */
 function getMarkConfig(markName) {
+  if(!MARK_CONFIG.hasOwnProperty(markName)) {
+    return null;
+  }
   return MARK_CONFIG[markName];
+}
+
+function getAvailableMarks() {
+  return Object.keys(MARK_CONFIG);
 }
 
 /**
@@ -879,6 +898,7 @@ module.exports = {
   getTodayTimestamp,
   getCurrentTimeStr,
   getMarkConfig,
+  getAvailableMarks,
   getAlias,
   getUserIdByAlias,
   getMsgLink,

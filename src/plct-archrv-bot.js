@@ -59,6 +59,7 @@ const {
   getCurrentTimeStr,
   getErrorLogDirLinkMd,
   getMarkConfig,
+  getAvailableMarks,
   findUserIdByPackage,
   getPackageMarkNamesByPkgname,
   findPackageMarksByMarkName,
@@ -478,20 +479,6 @@ async function replyAndDeleteAfter(chatId, msgId, text, ms, options = {}) {
 //  --------- TelegramBot related functions end ----------  //
 
 
-const usage = new Map([
-  ["unknown", "这个包还有未知的问题没解决，在其他 tag 都不适用的情况下用。使用时要记得补充说明"],
-  ["upstreamed", "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游"],
-  ["outdated", "这个包因为版本原因无法出包"],
-  ["outdated_dep", "这个包因为某个依赖版本的原因无法出包"],
-  ["stuck", "这个包处理起来非常棘手，短时间内无法修复"],
-  ["noqemu", "这个包仅在 qemu-user 环境里构建失败"],
-  ["ready", "可以直接出包，如果是打了 patch 之后才能出包的就不用标，把 PR 提交了等肥猫构建即可"],
-  ["ignore", "这个包在 riscv64 打包出来没有意义。比如一些 x86_64 专用的软件"],
-  ["missing_dep", "缺少依赖导致无法构建"],
-  ["flaky", "这个包偶尔会失败，要让肥猫多试几次"],
-  ["failing", "这个包上次构建失败（无需手动标记）"],
-]);
-
 onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
@@ -621,6 +608,10 @@ onText(MARK_REGEXP, async (msg, match) => {
     verb("with comment", comment);
   }
 
+  if(!getAvailableMarks().includes(mark)) {
+    return await showMarkHelp(chatId);
+  }
+
   const markConfig = getMarkConfig(mark);
 
   if(comment === "" && markConfig.requireComment) {
@@ -643,10 +634,6 @@ onText(MARK_REGEXP, async (msg, match) => {
     verb(`appending current time to comment for #${mark}`);
     comment += " " + getCurrentTimeStr();
     comment = comment.trim();
-  }
-
-  if(!Object.keys(localUtils.MARK2STR).includes(mark)) {
-    return await showMarkHelp(chatId);
   }
 
   const mentionLink = getMentionLink(userId, null, msg.from.first_name, msg.from.last_name, false);
@@ -773,6 +760,11 @@ async function _mark(pkg, mark, comment, userId, mentionLink, callback) {
     const mark = marks[i];
     let comment = comments[i] || "";
     const markConfig = getMarkConfig(mark);
+    if(!markConfig) {
+      allSuccessful = false;
+      callback(false, `mark ${mark} is not defined`);
+      continue;
+    }
     // we only care abot appendTimeComment here
     if(markConfig.appendTimeComment) {
       comment += " " + getCurrentTimeStr();
@@ -845,6 +837,10 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
   verb("trying to unmark", pkg, "'s", mark, "mark");
 
   const markConfig = getMarkConfig(mark);
+
+  if(!markConfig) {
+    return await sendMessage(chatId, `未知的标记：${mark}。`);
+  }
 
   if(!markConfig.allowUserModification.unmark && msg.from.id !== ADMIN_ID) {
     verb(`should not try to unmark #${mark} by hand`);
@@ -1055,16 +1051,17 @@ onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
   await replyMessage(chatId, msgId, toSafeMd("Usage: /getlog pkgname"), { parse_mode: "MarkdownV2" });
 });
 
-onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
+onText(/^\/helpmark(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
-  const marker = match[1];
+  const mark = match[1];
 
   let resp = "";
-  if (usage.has(marker)) {
-    resp = `Usage for ${marker}: ${usage.get(marker)}`;
+  const config = getMarkConfig(mark);
+  if (config) {
+    resp = `Usage for ${mark}: ${config.helpMsg}`;
   } else {
-    resp = `Unknow mark: ${marker}\n\nAvailable: ${Array.from(usage.keys()).join(", ")}`
+    resp = `Unknow mark: ${mark}\n\nAvailable: ${getAvailableMarks().join(", ")}`;
   }
 
   await replyMessage(chatId, msgId, resp);
