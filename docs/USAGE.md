@@ -14,7 +14,7 @@
 
 + `/status`
 
-+ `/help [mark]`
++ `/helpmark [mark]`
 
 ## Integration
 
