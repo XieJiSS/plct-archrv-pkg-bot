@@ -1055,7 +1055,7 @@ onText(/^\/getlog(?:@[\S]+?)?$/, async (msg) => {
   await replyMessage(chatId, msgId, toSafeMd("Usage: /getlog pkgname"), { parse_mode: "MarkdownV2" });
 });
 
-onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg) => {
+onText(/^\/help(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const marker = match[1];
