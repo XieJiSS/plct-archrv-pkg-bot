@@ -1059,9 +1059,9 @@ onText(/^\/helpmark(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
   let resp = "";
   const config = getMarkConfig(mark);
   if (config) {
-    resp = `Usage for ${mark}: ${config.helpMsg}`;
+    resp = `Usage for mark ${mark}: ${config.helpMsg}`;
   } else {
-    resp = `Unknow mark: ${mark}\n\nAvailable: ${getAvailableMarks().join(", ")}`;
+    resp = `Unknown mark: ${mark}\n\nAvailable: ${getAvailableMarks().join(", ")}`;
   }
 
   await replyMessage(chatId, msgId, resp);
