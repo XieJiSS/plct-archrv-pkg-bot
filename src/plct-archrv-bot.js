@@ -1073,6 +1073,7 @@ onText(/^\/reloadalias(?:@[\S]+?)?$/, async (msg) => {
     return;
   }
   await localUtils.loadAlias();
+  await sendMessage(chatId, "Alias reloaded.");
 });
 
 bot.on("message", (msg) => {
