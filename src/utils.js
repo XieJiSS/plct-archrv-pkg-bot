@@ -303,7 +303,8 @@ async function loadAlias() {
     /**
      * @type {Record<string, string>}
      */
-    const _aliasMap = JSON.parse(await readFile("../config/alias.json", "utf8"));
+    // async require
+    const _aliasMap = JSON.parse(await readFile(__dirname + "/../config/alias.json", "utf8"));
     for(const uid in _aliasMap) {
       if(_aliasMap.hasOwnProperty(uid)) {
         aliasMap[uid] = _aliasMap[uid];
