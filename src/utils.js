@@ -148,7 +148,7 @@ const MARK_CONFIG = {
     ],
   },
   failing: {
-    desc: "被自动标记为编译失败",
+    desc: "无法出包",
     helpMsg: "CI/CD 报告称这个包编译失败，无法出包。注意：不要手动修改此标记。",
     requireComment: false,
     allowUserModification: { mark: false, unmark: false },
