@@ -614,6 +614,10 @@ onText(MARK_REGEXP, async (msg, match) => {
 
   const markConfig = getMarkConfig(mark);
 
+  if(!markConfig) {
+    return await replyMessage(chatId, msgId, toSafeMd(`mark ${mark} in getAvailableMarks() but not in getMarkConfig()`));
+  }
+
   if(comment === "" && markConfig.requireComment) {
     verb(`mark ${mark} requires comment.`);
     await sendMessage(chatId, toSafeMd(`标记为 ${mark} 需要提供额外说明。`), {
@@ -784,12 +788,17 @@ onText(/^\/mark/, async (msg) => {
   return await showMarkHelp(chatId);
 });
 
-onText(/^\/unmark\s+(\S+)\s+(\S+)$/, async (msg, match) => {
+onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
   const userId = msg.from.id;
   const pkg = match[1];
   const mark = match[2];
+
+  if(!/^\/unmark\s+(\S+)\s+(\S+)$/.test(msg.text)) {
+    await sendMessage(chatId, "Too many arguments");
+    return;
+  }
 
   if(pkg !== pkg.toLowerCase()) {
     await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
