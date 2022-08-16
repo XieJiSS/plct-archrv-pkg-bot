@@ -157,6 +157,14 @@ const MARK_CONFIG = {
       { name: "ready",        op: "unmark", when: "mark" },
     ],
   },
+  nocheck: {
+    desc: "无法通过测试",
+    helpMsg: "需要 --nocheck 才能出包",
+    requireComment: true,
+    allowUserModification: { mark: true, unmark: true },
+    appendTimeComment: true,
+    triggers: [],
+  }
 };
 
 /**
