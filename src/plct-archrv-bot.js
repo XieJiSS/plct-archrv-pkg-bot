@@ -482,18 +482,18 @@ async function replyAndDeleteAfter(chatId, msgId, text, ms, options = {}) {
 onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const msgId = msg.message_id;
-  const newPackage = match[1];
+  const newPackageName = match[1];
 
-  if(newPackage !== newPackage.toLowerCase()) {
+  if(newPackageName !== newPackageName.toLowerCase()) {
     await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
       parse_mode: "MarkdownV2",
     });
   }
 
-  verb("trying to add", newPackage);
+  verb("trying to add", newPackageName);
 
-  if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === newPackage)).length) {
-    if(findUserIdByPackage(newPackage) === msg.from.id) {
+  if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg.name === newPackageName)).length) {
+    if(findUserIdByPackage(newPackageName) === msg.from.id) {
       await replyMessage(chatId, msgId, toSafeMd(`无需重复认领`));
     } else {
       await replyMessage(chatId, msgId, toSafeMd(`认领失败，这个 package 已被其他人认领`));
@@ -502,17 +502,23 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   }
 
   if(packageStatus.some(user => user.userid === msg.from.id)) {
-    packageStatus.find(user => user.userid === msg.from.id).packages.push(newPackage);
+    packageStatus.find(user => user.userid === msg.from.id).packages.push({ 
+      name: newPackageName,
+      lastActive: Date.now(),
+    });
   } else {
     packageStatus.push({
       userid: msg.from.id,
       username: msg.from.username,
-      packages: [ newPackage ],
+      packages: [{
+        name: newPackageName,
+        lastActive: Date.now(),
+      }],
     });
   }
   storePackageStatus();
 
-  const packageMark = packageMarks.filter(pkg => pkg.name === newPackage)[0];
+  const packageMark = packageMarks.filter(pkg => pkg.name === newPackageName)[0];
   if(packageMark && packageMark.marks.filter(mark => mark.name !== "failing").length) {
     const marks = packageMark.marks;
     let markStatusStr = toSafeMd(`认领成功，但请注意该 package 有特殊状态：\n`);
@@ -524,7 +530,7 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   }
 
   if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
-    await sendMessage(process.env["PLCT_CHAT_ID"], `${newPackage} 已被认领。`);
+    await sendMessage(process.env["PLCT_CHAT_ID"], `${newPackageName} 已被认领。`);
     await sendMessage(chatId, "deprecated: 不建议在 PLCT 群以外的地方认领包");
   }
 });
@@ -560,25 +566,26 @@ onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
 });
 
 /**
- * @param {string} mergedPackage
+ * @param {string} mergedPackageName
  * @param {number} userId
  * @param {(success: boolean, reason?: string) => any} callback
  */
-function _merge(mergedPackage, userId, callback) {
-  verb("trying to merge", mergedPackage);
+function _merge(mergedPackageName, userId, callback) {
+  verb("trying to merge", mergedPackageName);
 
-  if(!packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === mergedPackage)).length) {
+  if(!packageStatus.filter(user => user.packages.some(existingPkg => existingPkg.name === mergedPackageName)).length) {
     callback(false, `这个 package 不在认领记录中`);
     return;
   }
 
   if(packageStatus.some(user => user.userid === userId)) {
-    if(!packageStatus.find(user => user.userid === userId).packages.includes(mergedPackage)) {
+    const targetPackage = packageStatus.find(user => user.userid === userId).packages.find(pkg => pkg.name === mergedPackageName);
+    if(!targetPackage) {
       callback(false, `这个 package 不在你的认领记录中。请联系该包的认领人`);
       return;
     }
     //@ts-ignore
-    packageStatus.find(user => user.userid === userId).packages.remove(mergedPackage);
+    packageStatus.find(user => user.userid === userId).packages.remove(targetPackage);
     storePackageStatus().then(() => callback(true)).catch(err => callback(false, String(err)));
     return;
   }
@@ -993,7 +1000,7 @@ onText(/^\/status@?/, async (msg) => {
     if (!user.packages.length) continue;
     statusStr += user.username ? toSafeMd(user.username) : getMentionLink(user.userid, null, getAlias(user.userid), "");
     statusStr += toSafeMd(" - ");
-    statusStr += "`" + user.packages.slice().sort().map(toSafeCode).join("` `") + "`";
+    statusStr += "`" + user.packages.slice().sort().map(pkg => toSafeCode(pkg.name)).join("` `") + "`";
     statusStr += "\n\n";
   }
 
@@ -1018,8 +1025,8 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
 
   let statusStr = "";
 
-  if(packageStatus.some(user => user.packages.includes(pkgname))) {
-    const user = packageStatus.find(user => user.packages.includes(pkgname));
+  if(packageStatus.some(user => user.packages.map(pkg => pkg.name).includes(pkgname))) {
+    const user = packageStatus.find(user => user.packages.map(pkg => pkg.name).includes(pkgname));
     statusStr += toSafeMd(`该包已被 ${ getAlias(user.userid) } 认领。\n`);
   }
 

@@ -15,9 +15,20 @@ const verb = require("./_verbose");
 const BASE_LOG_DIR = process.env["PLCT_BASE_LOG_DIR"] || "";
 
 /**
- * @type {{ userid: number; username: string | undefined; packages: string[]; }[]}
+ * @typedef PackageInterface
+ * @prop {string} name
+ * @prop {number} lastActive
+ */
+
+/**
+ * @type {{
+    userid: number;
+    username: string | undefined;
+    packages: PackageInterface[];
+  }[]}
  */
 let packageStatus = [];
+
 /**
  * @type { {
     name: string;
@@ -228,11 +239,11 @@ function storePackageMarksSync() {
 function loadPackageStatus() {
   verb(loadPackageStatus);
   try {
-    packageStatus = require("../db/packageStatus.json");
+    packageStatus = _updatePackageStatusSchema(require("../db/packageStatus.json"));
   } catch(e) {
     verb(loadPackageStatus, e);
     try {
-      packageStatus = require("../db/packageStatus.bak.json");
+      packageStatus = _updatePackageStatusSchema(require("../db/packageStatus.bak.json"));
     } catch(e) {
       verb(loadPackageStatus, e);
       packageStatus = [];
@@ -241,6 +252,52 @@ function loadPackageStatus() {
   }
 }
 loadPackageStatus();
+
+/**
+ * @param {{
+      userid: number;
+      username: string | undefined;
+      packages: (string | PackageInterface)[];
+    }[]} oldPackageStatus
+    @return {{
+        userid: number;
+        username: string | undefined;
+        packages: PackageInterface[];
+    }[]}
+ */
+function _updatePackageStatusSchema(oldPackageStatus) {
+  if(oldPackageStatus.length === 0) {
+    return [];
+  }
+  if(oldPackageStatus.filter(({ packages }) => {
+    // is packages already of PackageInterface[] type?
+    return packages.length === 0 || packages.filter(p => typeof p === "string").length === 0;
+  }).length === 0) {
+    // was converted to new schema before
+    // @ts-ignore
+    return oldPackageStatus.slice();
+  }
+  return oldPackageStatus.map(user => {
+    /**
+     * @type {{
+        userid: number;
+        username: string | undefined;
+        packages: PackageInterface[];
+      }}
+     */
+    const ret = {
+      userid: user.userid,
+      username: user.username,
+      packages: user.packages.map(pkg => {
+        if(typeof pkg !== "string") {
+          throw new Error("Unexpected package type");
+        }
+        return { name: pkg, lastActive: Date.now() };
+      }),
+    };
+    return ret;
+  });
+}
 
 function loadPackageMarks() {
   verb(loadPackageMarks);
@@ -370,7 +427,7 @@ function getUserIdByAlias(alias) {
  * @returns {number | null}
  */
  function findUserIdByPackage(pkgname) {
-  const result = packageStatus.filter(user => user.packages.some(existingPkg => existingPkg === pkgname));
+  const result = packageStatus.filter(user => user.packages.some(existingPkg => existingPkg.name === pkgname));
   if(result.length === 0) return null;
   return result[0].userid;
 }
@@ -733,7 +790,7 @@ function fullKwd2regexp(keywords, flags = "i") {
 }
 
 /**
- * @param {{ userid: number; username: string | undefined; packages: string[]; }[]} status
+ * @param {{ userid: number; username: string | undefined; packages: PackageInterface[]; }[]} status
  */
 function stripPackageStatus(status) {
   /**
@@ -743,7 +800,7 @@ function stripPackageStatus(status) {
   for(const user of status) {
     ret.push({
       alias: getAlias(user.userid),
-      packages: user.packages,
+      packages: user.packages.map(pkg => pkg.name),
     });
   }
   return ret;
