@@ -1,0 +1,20 @@
+name: Rust Backend CI
+
+on:
+  push:
+    paths:
+      - 'server/**'
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: setup environment
+        run: pacman -S rustup git curl sqlx sqlite jq
+      - uses: actions/checkout@v3
+      - name: Build & Test
+        run: |
+          cd server
+          cargo build
+          ./tests/server_test.sh
