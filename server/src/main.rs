@@ -23,15 +23,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run(server_binding: (String, u16), db_conn: sqlx::SqlitePool) -> anyhow::Result<()> {
-    use routes::*;
     let state = routes::State { db_conn };
     let data = actix_web::web::Data::new(state);
 
     HttpServer::new(move || {
         App::new()
-            .service(add)
-            .service(pkg)
-            .service(delete)
+            .service(routes::add)
+            .service(routes::pkg)
+            .service(routes::delete)
             .app_data(data.clone())
     })
     .bind(server_binding)?
