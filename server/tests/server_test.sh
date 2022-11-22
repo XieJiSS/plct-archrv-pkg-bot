@@ -96,7 +96,7 @@ sleep 2s
 # TEST CASE1
 msg "Test Start"
 pkg_response=$(curl -s "localhost:11451/pkg" 2>&1)
-if [[ "$(echo $pkg_resposne | jq '.msg' | xargs)" = "null" ]]; then
+if [[ "$(echo $pkg_response | jq '.msg' | xargs)" != "null" ]]; then
   error "Fail to fetch /pkg"
   error "MSG: $(echo $pkg_response | jq '.msg')"
   error "DETAIL: $(echo $pkg_response | jq '.detail')"
