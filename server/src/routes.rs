@@ -21,7 +21,7 @@ struct ErrorJsonResp {
 
 impl ErrorJsonResp {
     /// Create a new Internal Server Error (ise) response
-    fn new_ise_resp<M, D>(msg: M, detail: D) -> HttpResponse
+    fn new_500_resp<M, D>(msg: M, detail: D) -> HttpResponse
     where
         M: ToString,
         D: ToString,
@@ -54,12 +54,12 @@ struct PkgJsonResponse {
 pub(super) async fn pkg(data: Data) -> HttpResponse {
     let work_list = sql::get_working_list(&data.db_conn).await;
     if let Err(err) = work_list {
-        return ErrorJsonResp::new_ise_resp("fail to get working list", err);
+        return ErrorJsonResp::new_500_resp("fail to get working list", err);
     }
 
     let mark_list = sql::get_mark_list(&data.db_conn).await;
     if let Err(err) = mark_list {
-        return ErrorJsonResp::new_ise_resp("fail to get mark list", err);
+        return ErrorJsonResp::new_500_resp("fail to get mark list", err);
     }
 
     HttpResponse::Ok().json(PkgJsonResponse {
