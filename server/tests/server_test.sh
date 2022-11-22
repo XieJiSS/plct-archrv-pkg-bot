@@ -64,14 +64,18 @@ prepare() {
   sqlx database setup
 
   prepare_query=$(cat <<EOF
+  PRAGMA foreign_keys = ON;
   INSERT INTO packager VALUES(123456, "John");
   INSERT INTO packager VALUES(678901, "Carl");
 
-  INSERT INTO pkg(name, assignee) VALUES("adb", 123456);
-  INSERT INTO pkg(name, assignee) VALUES("electron8", 678901);
+  INSERT INTO pkg(name) VALUES("adb");
+  INSERT INTO pkg(name) VALUES("electron8");
 
-  INSERT INTO mark VALUES("upstreamed",   123456, 1669088178, 18, "upstream fault...", 1);
-  INSERT INTO mark VALUES("stuck",        678901, 1669088178, 89, "hard to port...", 2);
+  INSERT INTO mark VALUES("upstreamed", 123456, 1669088178, 18, "upstream fault...", 1);
+  INSERT INTO mark VALUES("stuck",      678901, 1669088178, 89, "hard to port...", 2);
+
+  INSERT INTO assignment(pkg, assignee, assigned_at) VALUES(1, 123456, 1669088180);
+  INSERT INTO assignment(pkg, assignee, assigned_at) VALUES(2, 678901, 1669088190);
 EOF
 )
 
