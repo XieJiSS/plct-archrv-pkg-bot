@@ -12,10 +12,10 @@ jobs:
     container: archlinux:latest
     steps:
       - name: setup environment
-        run: pacman -Syu --noconfirm --needed \
-          git curl \
-          sqlx-cli sqlite jq \
-          rust pkg-config openssl sccache
+        run: "pacman -Syu --noconfirm --needed
+          git curl
+          sqlx-cli sqlite jq
+          rust pkg-config openssl sccache"
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
