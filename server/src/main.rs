@@ -4,6 +4,8 @@ use std::env;
 
 mod sql;
 mod routes;
+mod sql;
+mod tg;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -18,6 +20,19 @@ async fn main() -> anyhow::Result<()> {
     let listen_port = env::var("LISTEN_PORT")
         .map(|port| port.parse::<u16>().unwrap_or(11451))
         .unwrap_or(11451);
+    let token = env::var("HTTP_API_TOKEN").with_context(|| "fail to get auth token")?;
+    let group_id = env::var("GROUP_ID").map(|id| {
+        id.parse::<i64>()
+            .expect("GROUP_ID should be a valid signed 64bit integer number")
+    })?;
+
+    let bot = tg::Bot::new(&token, group_id);
+
+    let state = routes::State {
+        db_conn: sqlite,
+        bot,
+        token,
+    };
 
     run((listen_addr, listen_port), sqlite).await
 }
