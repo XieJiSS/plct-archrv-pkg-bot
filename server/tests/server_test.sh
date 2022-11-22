@@ -5,6 +5,8 @@ set -e
 DATABASE_FILE="test.db"
 NO_CLEAN_UP=${NO_CLEAN_UP:-0}
 export HTTP_API_TOKEN=$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
+export TGBOT_TOKEN=$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 16)
+export GROUP_ID=$RANDOM
 
 # ============= SETUP LOGGING ====================
 # prefer terminal safe colored and bold text when tput is supported
