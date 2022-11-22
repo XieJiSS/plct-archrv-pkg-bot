@@ -12,7 +12,7 @@ jobs:
     container: archlinux:latest
     steps:
       - name: setup environment
-        run: pacman -Syu --noconfirm --needed rust git curl sqlx-cli sqlite jq openssl
+        run: pacman -Syu --noconfirm --needed rust git curl sqlx-cli sqlite jq pkg-config openssl
       - uses: actions/checkout@v3
       - name: Build & Test
         run: |
