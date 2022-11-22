@@ -2,6 +2,9 @@
 
 set -e
 
+DATABASE_FILE="test.db"
+NO_CLEAN_UP=${NO_CLEAN_UP:-0}
+
 # ============= SETUP LOGGING ====================
 # prefer terminal safe colored and bold text when tput is supported
 if tput setaf 0 &>/dev/null; then
@@ -41,9 +44,10 @@ error() {
 # ================= SETUP CLEAN UP =====================
 # delete the test database and kill the backgroun server
 clean() {
-  echo "Clean up"
-  rm test.db*
-  kill -INT %1
+  (( NO_CLEAN_UP )) && exit 0
+  msg "Clean up"
+  msg2 "Remove database"; rm ${DATABASE_FILE}*
+  [[ -n "$(jobs)" ]] && msg2 "Kill background process" && kill %1
   exit 0
 }
 
@@ -55,42 +59,22 @@ trap clean EXIT SIGABRT
 # ====================== SET UP DB ====================
 # run migration and insert necessary data into $db
 prepare() {
-  db="test.db"
-  export DATABASE_URL="sqlite:$db"
+  export DATABASE_URL="sqlite:$DATABASE_FILE"
   sqlx database setup
 
   prepare_query=$(cat <<EOF
   INSERT INTO packager VALUES(123456, "John");
-  INSERT INTO packager VALUES(234567, "Tom");
-  INSERT INTO packager VALUES(456789, "Foo");
-  INSERT INTO packager VALUES(567890, "Alice");
   INSERT INTO packager VALUES(678901, "Carl");
 
   INSERT INTO pkg(name, assignee) VALUES("adb", 123456);
-  INSERT INTO pkg(name, assignee) VALUES("broot", 123456);
-  INSERT INTO pkg(name, assignee) VALUES("cat", 234567);
-  INSERT INTO pkg(name, assignee) VALUES("diskutils", 456789);
-  INSERT INTO pkg(name, assignee) VALUES("electron", 456789);
-  INSERT INTO pkg(name, assignee) VALUES("fdisk", 456789);
-  INSERT INTO pkg(name, assignee) VALUES("gcc", 567890);
-  INSERT INTO pkg(name, assignee) VALUES("haskell", 567890);
-  INSERT INTO pkg(name, assignee) VALUES("iptable", 678901);
+  INSERT INTO pkg(name, assignee) VALUES("electron8", 678901);
 
-  INSERT INTO mark VALUES("ready",        123456, 1669088178, "", 1);
-  INSERT INTO mark VALUES("upstreamed",   234567, 1669088178, "upstream fault...", 2);
-  INSERT INTO mark VALUES("missing-deps", 234567, 1669088178, "glib-c", 3);
-  INSERT INTO mark VALUES("stuck",        456789, 1669088178, "", 3);
-  INSERT INTO mark VALUES("ready",        456789, 1669088178, "", 4);
-  INSERT INTO mark VALUES("stuck",        456789, 1669088178, "hard to port...", 5);
-  INSERT INTO mark VALUES("ready",        456789, 1669088178, "", 6);
-  INSERT INTO mark VALUES("upstreamed",   456789, 1669088178, "", 7);
-  INSERT INTO mark VALUES("failing",      567890, 1669088178, "", 7);
-  INSERT INTO mark VALUES("failing",      567890, 1669088178, "", 8);
-  INSERT INTO mark VALUES("failing",      567890, 1669088178, "", 9);
+  INSERT INTO mark VALUES("upstreamed",   123456, 1669088178, 18, "upstream fault...", 1);
+  INSERT INTO mark VALUES("stuck",        678901, 1669088178, 89, "hard to port...", 2);
 EOF
 )
 
-  echo $prepare_query | sqlite3 $db
+  echo $prepare_query | sqlite3 $DATABASE_FILE
 }
 # END OF DB SETUP
 
@@ -106,16 +90,42 @@ cargo build
 msg "Start the server"
 cargo run &
 # necessary to avoid curl execute before server is ready
-msg2 "Wait for server"
+msg2 "Wait for server started"
 sleep 2s
 
 # TEST CASE1
 msg "Test Start"
-msg2 "TEST 1"; sleep 1s
-get=$(curl -sf "localhost:11451/pkg" | jq '.[0].alias' | xargs)
-if [[ "$get" != "John" ]]; then
-  error "Get $get is not expected"
+pkg_response=$(curl -s "localhost:11451/pkg" 2>&1)
+if [[ "$(echo $pkg_resposne | jq '.msg' | xargs)" = "null" ]]; then
+  error "Fail to fetch /pkg"
+  error "MSG: $(echo $pkg_response | jq '.msg')"
+  error "DETAIL: $(echo $pkg_response | jq '.detail')"
   exit 1
 fi
 
+route_pkg_test() {
+  local selection=$1; shift
+  local expect=$1; shift
+  local get=$(echo "$pkg_response" | jq "$selection" | xargs)
+  if [[ "$get" != "$expect" ]]; then
+    error "Get $get is not expected. Require ${expect}."
+    msg2 "Display Full Response for debug"
+    echo "$pkg_response"
+    exit 1
+  fi
+}
+
+msg2 "TEST 1"; sleep 1s
+route_pkg_test '.workList[0].alias' 'John'
+
+msg2 "TEST 2"; sleep 1s
+route_pkg_test '.workList[1].packages[0]' 'electron8'
+
+msg2 "TEST 3"; sleep 1s
+route_pkg_test '.markList[0].marks[0].name' 'upstreamed'
+
+msg2 "TEST 4"; sleep 1s
+route_pkg_test '.markList[1].marks[0].comment' 'hard to port...'
+
+msg "All test passed, exit"
 exit 0
