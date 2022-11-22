@@ -45,11 +45,17 @@ error() {
 # ================= SETUP CLEAN UP =====================
 # delete the test database and kill the backgroun server
 clean() {
+  # save it before we echo message
+  exit_code=$?
+
   (( NO_CLEAN_UP )) && exit 0
+
   msg "Clean up"
+
   msg2 "Remove database"; rm ${DATABASE_FILE}*
   [[ -n "$(jobs)" ]] && msg2 "Kill background process" && kill %1
-  exit $?
+
+  exit $exit_code
 }
 
 # execute when the script exit or aborted
