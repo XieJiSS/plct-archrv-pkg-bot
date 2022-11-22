@@ -60,6 +60,11 @@ pub struct ErrorResp {
     description: String,
 }
 
+/// Generate link in HTML <a href=...> format which can be used for mention a member in group.
+pub fn gen_mention_link(name: &str, id: i64) -> String {
+    format!(r#"<a href="tg://user?id={id}">{name}</a>"#)
+}
+
 #[test]
 fn test_send_message() {
     dotenvy::dotenv().ok();
@@ -73,9 +78,9 @@ fn test_send_message() {
 
     let bot = Bot::new(&token, group);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let result = rt.block_on(
-        bot.send_message("<b>Test Message</b>\n<code>if you see this message with markup, test is pass</code>"),
-    );
+    let result = rt.block_on(bot.send_message(
+        "<b>Test Message</b>\n<code>if you see this message with markup, test is pass</code>",
+    ));
     if let Err(err) = &result {
         dbg!(err);
     }

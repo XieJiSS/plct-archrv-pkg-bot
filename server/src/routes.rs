@@ -1,13 +1,15 @@
-use super::sql;
+use std::collections::HashMap;
 
-use actix_web::{get, HttpResponse};
+use super::{sql, tg};
+
+use actix_web::{get, web, HttpResponse};
 
 /// Runtime necessary data.
 pub struct State {
     /// connection pool to the sqlite database
     pub db_conn: sqlx::SqlitePool,
     pub token: String,
-    pub bot: super::tg::Bot,
+    pub bot: tg::Bot,
 }
 
 /// Alias of the application state data
@@ -30,6 +32,20 @@ impl ErrorJsonResp {
     {
         HttpResponse::InternalServerError().json(Self {
             msg: msg.to_string(),
+            detail: detail.to_string(),
+        })
+    }
+
+    fn new_403_resp<M: ToString>(detail: M) -> HttpResponse {
+        HttpResponse::Forbidden().json(Self {
+            msg: "forbidden".to_string(),
+            detail: detail.to_string(),
+        })
+    }
+
+    fn new_400_resp<M: ToString>(detail: M) -> HttpResponse {
+        HttpResponse::BadRequest().json(Self {
+            msg: "bad request".to_string(),
             detail: detail.to_string(),
         })
     }
@@ -70,7 +86,53 @@ pub(super) async fn pkg(data: Data) -> HttpResponse {
     })
 }
 
-#[get("/delete")]
-pub(super) async fn delete() -> HttpResponse {
-    todo!()
+#[derive(serde::Deserialize)]
+pub struct RouteDeletePathSegment {
+    pkgname: String,
+    status: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct RouteDeleteQuery {
+    token: String,
+}
+
+#[get("/delete/{pkgname}/{status}")]
+pub(super) async fn delete(
+    path: web::Path<RouteDeletePathSegment>,
+    q: web::Query<RouteDeleteQuery>,
+    data: Data,
+) -> HttpResponse {
+    if q.token != data.token {
+        return ErrorJsonResp::new_403_resp("invalid token");
+    }
+
+    if !["ftbfs", "leaf"].contains(&path.status.as_str()) {
+        return ErrorJsonResp::new_400_resp(format!(
+            "Required 'ftbfs' or 'leaf', get {}",
+            path.status
+        ));
+    }
+
+    let packager = sql::find_packager(
+        &data.db_conn,
+        sql::FindPackagerProp::ByPkgname(&path.pkgname),
+    )
+    .await;
+    if let Err(err) = packager {
+        return ErrorJsonResp::new_500_resp("fail to fetch packager", err);
+    }
+    let packager = packager.unwrap();
+    let text = format!(
+        "<code>(auto-merge)</code> ping {}: {} 已出包",
+        tg::gen_mention_link(&packager.alias, packager.tg_uid),
+        path.pkgname
+    );
+
+    let notify_result = data.bot.send_message(&text).await;
+    if let Err(err) = notify_result {
+        return ErrorJsonResp::new_500_resp("fail to send telegram message", err);
+    }
+
+    HttpResponse::Ok().json(HashMap::from([("status", "ok"), ("msg", "pkg deleted")]))
 }
