@@ -123,8 +123,10 @@ pub(super) async fn delete(
         return ErrorJsonResp::new_500_resp("fail to fetch packager", err);
     }
     let packager = packager.unwrap();
+
+    let prefix = "<code>(auto-merge)</code>";
     let text = format!(
-        "<code>(auto-merge)</code> ping {}: {} 已出包",
+        "{prefix} ping {}: {} 已出包",
         tg::gen_mention_link(&packager.alias, packager.tg_uid),
         path.pkgname
     );
@@ -133,6 +135,13 @@ pub(super) async fn delete(
     if let Err(err) = notify_result {
         return ErrorJsonResp::new_500_resp("fail to send telegram message", err);
     }
+
+    if let Err(err) = sql::drop_assign(&data.db_conn, &path.pkgname, packager.tg_uid).await {
+        let text = format!("{prefix} failed: {err}");
+        if let Err(err) = data.bot.send_message(&text).await {
+            return ErrorJsonResp::new_500_resp("fail to send telegram message", err);
+        };
+    };
 
     HttpResponse::Ok().json(HashMap::from([("status", "ok"), ("msg", "pkg deleted")]))
 }
