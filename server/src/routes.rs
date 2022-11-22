@@ -6,6 +6,8 @@ use actix_web::{get, HttpResponse};
 pub struct State {
     /// connection pool to the sqlite database
     pub db_conn: sqlx::SqlitePool,
+    pub token: String,
+    pub bot: super::tg::Bot,
 }
 
 /// Alias of the application state data
