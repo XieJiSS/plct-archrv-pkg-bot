@@ -14,9 +14,23 @@ type Data = actix_web::web::Data<State>;
 /// Default JSON response when some internal error occur. The msg field should contains friendly
 /// hint for debugging. And detail field contains the original error.
 #[derive(serde::Serialize)]
-struct ErrorJsonResp<'m> {
-    msg: &'m str,
+struct ErrorJsonResp {
+    msg: String,
     detail: String,
+}
+
+impl ErrorJsonResp {
+    /// Create a new Internal Server Error (ise) response
+    fn new_ise_resp<M, D>(msg: M, detail: D) -> HttpResponse
+    where
+        M: ToString,
+        D: ToString,
+    {
+        HttpResponse::InternalServerError().json(Self {
+            msg: msg.to_string(),
+            detail: detail.to_string(),
+        })
+    }
 }
 
 #[get("/add")]
@@ -40,18 +54,12 @@ struct PkgJsonResponse {
 pub(super) async fn pkg(data: Data) -> HttpResponse {
     let work_list = sql::get_working_list(&data.db_conn).await;
     if let Err(err) = work_list {
-        return HttpResponse::InternalServerError().json(ErrorJsonResp {
-            msg: "fail to get working list",
-            detail: err.to_string(),
-        });
+        return ErrorJsonResp::new_ise_resp("fail to get working list", err);
     }
 
     let mark_list = sql::get_mark_list(&data.db_conn).await;
     if let Err(err) = mark_list {
-        return HttpResponse::InternalServerError().json(ErrorJsonResp {
-            msg: "fail to get mark list",
-            detail: err.to_string(),
-        });
+        return ErrorJsonResp::new_ise_resp("fail to get mark list", err);
     }
 
     HttpResponse::Ok().json(PkgJsonResponse {
