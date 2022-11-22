@@ -12,10 +12,34 @@ jobs:
     container: archlinux:latest
     steps:
       - name: setup environment
-        run: pacman -Syu --noconfirm --needed rust git curl sqlx-cli sqlite jq pkg-config openssl
+        run: pacman -Syu --noconfirm --needed \
+          git curl \
+          sqlx-cli sqlite jq \
+          rust pkg-config openssl sccache
       - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: arch-linux-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: arch-linux-cargo-
+      - uses: actions/cache@v3
+        with:
+          path: /home/root/.cache/sccache
+          key: arch-linux-sccache-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: arch-linux-sccache
+      - run: sccache --start-server
       - name: Build & Test
+        env:
+          RUST_BACKTRACE: full
+          RUSTC_WRAPPER: sccache
+          SCCACHE_DIR: /home/root/.cache/sccache
+          SCCACHE_CACHE_SIZE: 2G
         run: |
           cd server
           cargo build
           ./tests/server_test.sh
+      - run: sccache --show-stats && sccache --stop-server || true
