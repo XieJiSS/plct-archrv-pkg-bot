@@ -11,6 +11,8 @@ pub struct Packager {
 #[derive(serde::Serialize)]
 pub struct WorkListUnit {
     alias: String,
+    /// make compatibility to the old api
+    #[serde(rename = "packages")]
     assign: Vec<String>,
 }
 
@@ -45,7 +47,11 @@ pub struct Mark {
     /// Unix epoch timestamp represent when this mark generated. Use i64 here because sqlite
     /// doesn't support unsigned 64 bit integer number
     marked_at: i64,
-    marked_by: String,
+    #[serde(skip)]
+    marked_by: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    by: Option<String>,
     /// Id of the message which generate this mark. Useful for targeting the discussion.
     /// Use i64 here because sqlite doesn't support unsigned 64bit integer number.
     msg_id: i64,
@@ -74,7 +80,7 @@ pub async fn get_mark_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<MarkListU
     for p in pkgs {
         let (id, name) = p;
 
-        let marks = sqlx::query_as::<_, Mark>(
+        let mut marks = sqlx::query_as::<_, Mark>(
             "SELECT
                name, marked_by, marked_at, msg_id, comment
              FROM mark
@@ -86,6 +92,16 @@ pub async fn get_mark_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<MarkListU
 
         if marks.is_empty() {
             continue;
+        }
+
+        for m in &mut marks {
+            let tgid = m.marked_by;
+            let alias: String = sqlx::query("SELECT alias FROM packager WHERE tg_uid=?")
+                .bind(tgid)
+                .map(|row: SqliteRow| row.get("alias"))
+                .fetch_one(db_conn)
+                .await?;
+            m.by = Some(alias);
         }
 
         mark_list.push(MarkListUnit { name, marks })
