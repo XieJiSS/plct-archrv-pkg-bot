@@ -47,8 +47,12 @@ pub struct Mark {
     /// Unix epoch timestamp represent when this mark generated. Use i64 here because sqlite
     /// doesn't support unsigned 64 bit integer number
     marked_at: i64,
+    /// This is a private field which is used for unpack tg_uid column from query. So here skip the json
+    /// serialization.
     #[serde(skip)]
     marked_by: i64,
+    /// This is the public field for representing the alias name of the tg_uid field. It's value needs to
+    /// be manually assigned. So by default sqlx will give it an Option::None value.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[sqlx(default)]
     by: Option<String>,
