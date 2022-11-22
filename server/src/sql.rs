@@ -143,6 +143,7 @@ pub async fn find_packager<'a>(
     Ok(packager)
 }
 
+#[allow(unused)]
 #[derive(sqlx::FromRow)]
 pub struct Assignment {
     id: i64,
