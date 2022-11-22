@@ -100,16 +100,43 @@ pub async fn get_mark_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<MarkListU
 
         for m in &mut marks {
             let tgid = m.marked_by;
-            let alias: String = sqlx::query("SELECT alias FROM packager WHERE tg_uid=?")
-                .bind(tgid)
-                .map(|row: SqliteRow| row.get("alias"))
-                .fetch_one(db_conn)
-                .await?;
-            m.by = Some(alias);
+            let packager = find_packager(db_conn, FindPackagerProp::ByTgId(tgid)).await?;
+            m.by = Some(packager.alias);
         }
 
         mark_list.push(MarkListUnit { name, marks })
     }
 
     Ok(mark_list)
+}
+
+/// Properties for finding an assignee
+pub enum FindPackagerProp<'a> {
+    ByPkgname(&'a str),
+    ByTgId(i64),
+}
+
+impl<'a> FindPackagerProp<'a> {
+    /// Generate query by corressbonding search property
+    fn gen_query(
+        self,
+    ) -> sqlx::query::QueryAs<'a, sqlx::Sqlite, Packager, sqlx::sqlite::SqliteArguments<'a>> {
+        match self {
+            Self::ByTgId(id) => sqlx::query_as("SELECT * FROM packager WHERE tg_uid=?").bind(id),
+            Self::ByPkgname(name) => sqlx::query_as(
+                "SELECT * FROM packager WHERE tg_uid=(SELECT assignee FROM PKG WHERE name=?)",
+            )
+            .bind(name),
+        }
+    }
+}
+
+/// Find assignee information by multiple search property
+pub async fn find_packager<'a>(
+    db_conn: &SqlitePool,
+    props: FindPackagerProp<'a>,
+) -> anyhow::Result<Packager> {
+    let query = props.gen_query();
+    let packager = query.fetch_one(db_conn).await?;
+    Ok(packager)
 }
