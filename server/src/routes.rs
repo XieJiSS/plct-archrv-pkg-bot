@@ -12,7 +12,7 @@ type Data = actix_web::web::Data<State>;
 #[derive(serde::Serialize)]
 struct ErrorJsonResp<'m> {
     msg: &'m str,
-    details: String,
+    detail: String,
 }
 
 #[get("/add")]
@@ -27,7 +27,7 @@ pub(super) async fn pkg(data: Data) -> HttpResponse {
         Ok(data) => HttpResponse::Ok().json(data),
         Err(err) => HttpResponse::InternalServerError().json(ErrorJsonResp {
             msg: "fail to get working list",
-            details: err.to_string(),
+            detail: err.to_string(),
         }),
     }
 }
