@@ -28,16 +28,18 @@ jobs:
           restore-keys: arch-linux-cargo-
       - uses: actions/cache@v3
         with:
-          path: /home/root/.cache/sccache
+          path: /github/home/.cache/sccache
           key: arch-linux-sccache-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: arch-linux-sccache
-      - run: sccache --start-server
+      - name: Start Sccache Sever
+        env:
+          SCCACHE_DIR: /github/home/.cache/sccache
+          SCCACHE_CACHE_SIZE: 2G
+        run: sccache --start-server
       - name: Build & Test
         env:
           RUST_BACKTRACE: full
           RUSTC_WRAPPER: sccache
-          SCCACHE_DIR: /home/root/.cache/sccache
-          SCCACHE_CACHE_SIZE: 2G
         run: |
           cd server
           cargo build
