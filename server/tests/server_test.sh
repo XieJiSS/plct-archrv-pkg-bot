@@ -49,7 +49,7 @@ clean() {
   msg "Clean up"
   msg2 "Remove database"; rm ${DATABASE_FILE}*
   [[ -n "$(jobs)" ]] && msg2 "Kill background process" && kill %1
-  exit 0
+  exit $?
 }
 
 # execute when the script exit or aborted
