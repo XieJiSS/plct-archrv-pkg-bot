@@ -19,18 +19,19 @@ async fn main() -> anyhow::Result<()> {
     let listen_port = env::var("LISTEN_PORT")
         .map(|port| port.parse::<u16>().unwrap_or(11451))
         .unwrap_or(11451);
-    let token = env::var("HTTP_API_TOKEN").with_context(|| "fail to get auth token")?;
+    let auth_token = env::var("HTTP_API_TOKEN").with_context(|| "fail to get auth token")?;
+    let bot_token = env::var("TGBOT_TOKEN").with_context(|| "fail to get bot token")?;
     let group_id = env::var("GROUP_ID").map(|id| {
         id.parse::<i64>()
             .expect("GROUP_ID should be a valid signed 64bit integer number")
-    })?;
+    }).with_context(|| "fail to find group id")?;
 
-    let bot = tg::Bot::new(&token, group_id);
+    let bot = tg::Bot::new(&bot_token, group_id);
 
     let state = routes::State {
         db_conn: sqlite,
         bot,
-        token,
+        token: auth_token,
     };
 
     run((listen_addr, listen_port), state).await
