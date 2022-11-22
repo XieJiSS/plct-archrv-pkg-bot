@@ -14,8 +14,9 @@ CREATE TABLE IF NOT EXISTS pkg (
 
 CREATE TABLE IF NOT EXISTS mark(
   name      TEXT NOT NULL,
-  mark_by   INT,
+  marked_by INT,
   marked_at INT NOT NULL,
+  msg_id    INT NOT NULL,
   comment   TEXT,
   for_pkg   INT,
 

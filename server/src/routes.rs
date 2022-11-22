@@ -32,19 +32,32 @@ pub(super) async fn add() -> HttpResponse {
 #[serde(rename_all = "camelCase")]
 struct PkgJsonResponse {
     work_list: Vec<sql::WorkListUnit>,
+    mark_list: Vec<sql::MarkListUnit>,
 }
 
-/// Route `/pkg`
+/// Implementation of route `/pkg`
 #[get("/pkg")]
 pub(super) async fn pkg(data: Data) -> HttpResponse {
-    let data = sql::get_working_list(&data.db_conn).await;
-    match data {
-        Ok(data) => HttpResponse::Ok().json(PkgJsonResponse { work_list: data }),
-        Err(err) => HttpResponse::InternalServerError().json(ErrorJsonResp {
+    let work_list = sql::get_working_list(&data.db_conn).await;
+    if let Err(err) = work_list {
+        return HttpResponse::InternalServerError().json(ErrorJsonResp {
             msg: "fail to get working list",
             detail: err.to_string(),
-        }),
+        });
     }
+
+    let mark_list = sql::get_mark_list(&data.db_conn).await;
+    if let Err(err) = mark_list {
+        return HttpResponse::InternalServerError().json(ErrorJsonResp {
+            msg: "fail to get mark list",
+            detail: err.to_string(),
+        });
+    }
+
+    HttpResponse::Ok().json(PkgJsonResponse {
+        work_list: work_list.unwrap(),
+        mark_list: mark_list.unwrap(),
+    })
 }
 
 #[get("/delete")]

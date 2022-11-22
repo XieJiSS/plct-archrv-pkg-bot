@@ -36,3 +36,60 @@ pub async fn get_working_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<WorkLi
 
     Ok(list)
 }
+
+/// Information of a single mark.
+#[derive(serde::Serialize, sqlx::FromRow)]
+pub struct Mark {
+    /// name of the mark
+    name: String,
+    /// Unix epoch timestamp represent when this mark generated. Use i64 here because sqlite
+    /// doesn't support unsigned 64 bit integer number
+    marked_at: i64,
+    marked_by: String,
+    /// Id of the message which generate this mark. Useful for targeting the discussion.
+    /// Use i64 here because sqlite doesn't support unsigned 64bit integer number.
+    msg_id: i64,
+    /// Optional comment related with this mark
+    comment: String,
+}
+
+/// A single unit for the `/pkg` route markList response
+#[derive(serde::Serialize)]
+pub struct MarkListUnit {
+    /// Name of the package
+    name: String,
+    /// List of mark attach to the package
+    marks: Vec<Mark>,
+}
+
+/// Query the database and get list of packages with their marks
+pub async fn get_mark_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<MarkListUnit>> {
+    let pkgs: Vec<(i64, String)> = sqlx::query("SELECT id, name FROM pkg")
+        .map(|row: SqliteRow| (row.get("id"), row.get("name")))
+        .fetch_all(db_conn)
+        .await?;
+
+    let mut mark_list = Vec::with_capacity(pkgs.len());
+
+    for p in pkgs {
+        let (id, name) = p;
+
+        let marks = sqlx::query_as::<_, Mark>(
+            "SELECT
+               name, marked_by, marked_at, msg_id, comment
+             FROM mark
+             WHERE for_pkg=?",
+        )
+        .bind(id)
+        .fetch_all(db_conn)
+        .await?;
+
+        if marks.is_empty() {
+            continue;
+        }
+
+        mark_list.push(MarkListUnit { name, marks })
+    }
+
+    Ok(mark_list)
+}
