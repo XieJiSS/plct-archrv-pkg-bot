@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS packager(
 
 CREATE TABLE IF NOT EXISTS pkg (
   id               INTEGER PRIMARY KEY,
-  name             TEXT NOT NULL,
+  name             TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS assignment (
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS assignment (
   assigned_at INT NOT NULL,
   FOREIGN KEY(pkg) REFERENCES pkg(id),
   FOREIGN KEY(assignee) REFERENCES packager(tg_uid)
-)
+);
 
 CREATE TABLE IF NOT EXISTS mark(
   name      TEXT NOT NULL,
