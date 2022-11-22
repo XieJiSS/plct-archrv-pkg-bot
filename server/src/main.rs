@@ -2,7 +2,6 @@ use actix_web::{App, HttpServer};
 use anyhow::Context;
 use std::env;
 
-mod sql;
 mod routes;
 mod sql;
 mod tg;
@@ -34,11 +33,10 @@ async fn main() -> anyhow::Result<()> {
         token,
     };
 
-    run((listen_addr, listen_port), sqlite).await
+    run((listen_addr, listen_port), state).await
 }
 
-async fn run(server_binding: (String, u16), db_conn: sqlx::SqlitePool) -> anyhow::Result<()> {
-    let state = routes::State { db_conn };
+async fn run(server_binding: (String, u16), state: routes::State) -> anyhow::Result<()> {
     let data = actix_web::web::Data::new(state);
 
     HttpServer::new(move || {
