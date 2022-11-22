@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS packager(
 );
 
 CREATE TABLE IF NOT EXISTS pkg (
-  id               INT AUTO INCREMENT PRIMARY KEY,
+  id               INTEGER PRIMARY KEY,
   name             TEXT NOT NULL,
   assignee         INT,
   last_assigned_at INT,
@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS mark(
   marked_at INT NOT NULL,
   msg_id    INT NOT NULL,
   comment   TEXT,
-  for_pkg   INT,
+  for_pkg   INTEGER,
 
-  FOREIGN KEY(mark_by) REFERENCES packager(tg_uid),
+  FOREIGN KEY(marked_by) REFERENCES packager(tg_uid),
   FOREIGN KEY(for_pkg) REFERENCES pkg(id)
 );
 
