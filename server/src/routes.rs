@@ -156,5 +156,47 @@ pub(super) async fn delete(
         };
     };
 
+    let mut tasks = Vec::with_capacity(2);
+    tasks.push(tokio::spawn(async move {
+        // actix_web::Data is just a wrapper for Arc, copy is cheap here.
+        let data = data.clone();
+        let pkgname = path.pkgname.to_string();
+        let matches = &[
+            "outdated",
+            "stuck",
+            "ready",
+            "outdated_dep",
+            "missing_dep",
+            "unknown",
+            "ignore",
+            "failing",
+        ];
+        let result = sql::remove_marks(&data.db_conn, &pkgname, Some(matches)).await;
+        match result {
+            Ok(deleted) => {
+                let marks = deleted.join(",");
+                data.bot
+                    .send_message(&format!(
+                        "<code>(auto-unmark)</code> {pkgname} 已出包，不再标记为：{marks}"
+                    ))
+                    .await
+            }
+            Err(err) => {
+                data.bot
+                    .send_message(&format!(
+                        "fail to delete marks for {pkgname}: \n<code>{err}</code>"
+                    ))
+                    .await
+            }
+        }
+    }));
+
+    for t in tasks {
+        let result = t.await;
+        if let Err(err) = result {
+            MsgResp::new_500_resp("Execution fail", err);
+        }
+    }
+
     MsgResp::new_200_msg("package deleted")
 }

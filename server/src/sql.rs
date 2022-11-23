@@ -180,3 +180,75 @@ pub async fn drop_assign(db_conn: &SqlitePool, pkgname: &str, packager: i64) -> 
 
     Ok(())
 }
+
+#[derive(sqlx::FromRow)]
+pub struct Pkg {
+    id: i64,
+    name: String,
+}
+
+pub enum SearchPkgProp {
+    ById(i64),
+    ByName(String),
+}
+
+impl Pkg {
+    async fn search(db_conn: &SqlitePool, prop: SearchPkgProp) -> anyhow::Result<Self> {
+        let query = match prop {
+            SearchPkgProp::ById(id) => {
+                sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE id=?").bind(id)
+            }
+            SearchPkgProp::ByName(name) => {
+                sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE name=?").bind(name)
+            }
+        };
+        Ok(query.fetch_one(db_conn).await?)
+    }
+}
+
+/// Remove marks for the given package. User can gives a list of extra matches to remove a range of
+/// mark. Return a list of deleted marks.
+///
+/// # Example
+///
+/// ```rust
+/// // remove all
+/// remove_marks(&conn, "rustup")
+///
+/// // remove marks that is "upstreamed" or "flaky"
+/// remove_marks(&conn, "rustup", Some(&["upstreamed", "flaky"]))
+/// ```
+pub async fn remove_marks(
+    db_conn: &SqlitePool,
+    pkgname: &str,
+    matches: Option<&[&str]>,
+) -> anyhow::Result<Vec<String>> {
+    let pkg = Pkg::search(db_conn, SearchPkgProp::ByName(pkgname.to_string())).await?;
+
+    let query = if let Some(matches) = matches {
+        if matches.is_empty() {
+            anyhow::bail!("invalid matches argument");
+        }
+
+        // HACK: sqlx doesn't support Vec<T> as value, so I have to manually join them
+        // with comma. But it is very hacky and I can't guarantee it will work robustly.
+        // Tracking issue: https://github.com/launchbadge/sqlx/issues/875.
+        sqlx::query_as::<_, Mark>(
+            r#"DELETE FROM mark
+        WHERE for_pkg=? AND name IN ?
+        RETURNING *"#,
+        )
+        .bind(pkg.id)
+        .bind(matches.join(","))
+    } else {
+        // if user doesn't give us matches, remove all
+        sqlx::query_as::<_, Mark>("DELETE FROM mark WHERE for_pkg=? RETURNING *").bind(pkg.id)
+    };
+
+    let deleted = query.fetch_all(db_conn).await?;
+    if deleted.is_empty() {
+        anyhow::bail!("No marks found for this package")
+    }
+
+    Ok(deleted.into_iter().map(|mark| mark.name).collect())
+}
