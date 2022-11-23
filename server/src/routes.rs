@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::{sql, tg};
 
 use actix_web::{get, web, HttpResponse};
@@ -15,15 +13,30 @@ pub struct State {
 /// Alias of the application state data
 type Data = actix_web::web::Data<State>;
 
+#[derive(Debug, serde::Serialize)]
+enum ReqStatus {
+    Ok,
+    Fail,
+}
+
 /// Default JSON response when some internal error occur. The msg field should contains friendly
 /// hint for debugging. And detail field contains the original error.
 #[derive(serde::Serialize)]
-struct ErrorJsonResp {
+struct MsgResp {
+    status: ReqStatus,
     msg: String,
     detail: String,
 }
 
-impl ErrorJsonResp {
+impl MsgResp {
+    fn new_200_msg<D: ToString>(detail: D) -> HttpResponse {
+        HttpResponse::Ok().json(Self {
+            status: ReqStatus::Ok,
+            msg: "Request success".to_string(),
+            detail: detail.to_string(),
+        })
+    }
+
     /// Create a new Internal Server Error (ise) response
     fn new_500_resp<M, D>(msg: M, detail: D) -> HttpResponse
     where
@@ -31,6 +44,7 @@ impl ErrorJsonResp {
         D: ToString,
     {
         HttpResponse::InternalServerError().json(Self {
+            status: ReqStatus::Fail,
             msg: msg.to_string(),
             detail: detail.to_string(),
         })
@@ -38,6 +52,7 @@ impl ErrorJsonResp {
 
     fn new_403_resp<M: ToString>(detail: M) -> HttpResponse {
         HttpResponse::Forbidden().json(Self {
+            status: ReqStatus::Fail,
             msg: "forbidden".to_string(),
             detail: detail.to_string(),
         })
@@ -45,6 +60,7 @@ impl ErrorJsonResp {
 
     fn new_400_resp<M: ToString>(detail: M) -> HttpResponse {
         HttpResponse::BadRequest().json(Self {
+            status: ReqStatus::Fail,
             msg: "bad request".to_string(),
             detail: detail.to_string(),
         })
@@ -72,12 +88,12 @@ struct PkgJsonResponse {
 pub(super) async fn pkg(data: Data) -> HttpResponse {
     let work_list = sql::get_working_list(&data.db_conn).await;
     if let Err(err) = work_list {
-        return ErrorJsonResp::new_500_resp("fail to get working list", err);
+        return MsgResp::new_500_resp("fail to get working list", err);
     }
 
     let mark_list = sql::get_mark_list(&data.db_conn).await;
     if let Err(err) = mark_list {
-        return ErrorJsonResp::new_500_resp("fail to get mark list", err);
+        return MsgResp::new_500_resp("fail to get mark list", err);
     }
 
     HttpResponse::Ok().json(PkgJsonResponse {
@@ -104,14 +120,11 @@ pub(super) async fn delete(
     data: Data,
 ) -> HttpResponse {
     if q.token != data.token {
-        return ErrorJsonResp::new_403_resp("invalid token");
+        return MsgResp::new_403_resp("invalid token");
     }
 
     if !["ftbfs", "leaf"].contains(&path.status.as_str()) {
-        return ErrorJsonResp::new_400_resp(format!(
-            "Required 'ftbfs' or 'leaf', get {}",
-            path.status
-        ));
+        return MsgResp::new_400_resp(format!("Required 'ftbfs' or 'leaf', get {}", path.status));
     }
 
     let packager = sql::find_packager(
@@ -120,7 +133,7 @@ pub(super) async fn delete(
     )
     .await;
     if let Err(err) = packager {
-        return ErrorJsonResp::new_500_resp("fail to fetch packager", err);
+        return MsgResp::new_500_resp("fail to fetch packager", err);
     }
     let packager = packager.unwrap();
 
@@ -133,15 +146,15 @@ pub(super) async fn delete(
 
     let notify_result = data.bot.send_message(&text).await;
     if let Err(err) = notify_result {
-        return ErrorJsonResp::new_500_resp("fail to send telegram message", err);
+        return MsgResp::new_500_resp("fail to send telegram message", err);
     }
 
     if let Err(err) = sql::drop_assign(&data.db_conn, &path.pkgname, packager.tg_uid).await {
         let text = format!("{prefix} failed: {err}");
         if let Err(err) = data.bot.send_message(&text).await {
-            return ErrorJsonResp::new_500_resp("fail to send telegram message", err);
+            return MsgResp::new_500_resp("fail to send telegram message", err);
         };
     };
 
-    HttpResponse::Ok().json(HashMap::from([("status", "ok"), ("msg", "pkg deleted")]))
+    MsgResp::new_200_msg("package deleted")
 }
