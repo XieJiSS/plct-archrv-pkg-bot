@@ -43,6 +43,19 @@ error() {
 }
 # END OF SETUP LOGGING
 
+check_depends() {
+  msg "Checking dependency"
+  local dependencies=($@)
+  for dep in ${dependencies[@]}; do
+    msg2 "checking ${YELLOW}$dep${ALL_OFF}"
+    if ! command -v "$1" &> /dev/null; then
+      error "$1 not found, exit"
+      exit 1
+    fi
+  done
+}
+
+check_depends cargo curl jq sqlite3 sqlx xargs
 
 # ================= SETUP CLEAN UP =====================
 # delete the test database and kill the backgroun server
