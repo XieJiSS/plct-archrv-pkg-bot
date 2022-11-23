@@ -25,11 +25,10 @@ pub async fn get_working_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<WorkLi
     let mut list = Vec::new();
 
     for p in packager {
-        let assign = sqlx::query(
+        let assign: Vec<String> = sqlx::query_scalar(
             "SELECT name FROM pkg WHERE id IN (SELECT pkg FROM assignment WHERE assignee=?)",
         )
         .bind(p.tg_uid)
-        .map(|row: SqliteRow| row.get::<String, _>("name"))
         .fetch_all(db_conn)
         .await?;
         list.push(WorkListUnit {
