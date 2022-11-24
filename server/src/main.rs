@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
             .expect("GROUP_ID should be a valid signed 64bit integer number")
     }).with_context(|| "fail to find group id")?;
 
-    let bot = tg::Bot::new(&bot_token, group_id);
+    let bot = tg::BotHandler::new(&bot_token, group_id);
 
     let state = routes::State {
         db_conn: sqlite,

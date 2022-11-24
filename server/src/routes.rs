@@ -7,7 +7,7 @@ pub struct State {
     /// connection pool to the sqlite database
     pub db_conn: sqlx::SqlitePool,
     pub token: String,
-    pub bot: tg::Bot,
+    pub bot: tg::BotHandler,
 }
 
 /// Alias of the application state data
@@ -144,16 +144,11 @@ pub(super) async fn delete(
         path.pkgname
     );
 
-    let notify_result = data.bot.send_message(&text).await;
-    if let Err(err) = notify_result {
-        return MsgResp::new_500_resp("fail to send telegram message", err);
-    }
+    data.bot.send_message(&text).await;
 
     if let Err(err) = sql::drop_assign(&data.db_conn, &path.pkgname, packager.tg_uid).await {
         let text = format!("{prefix} failed: {err}");
-        if let Err(err) = data.bot.send_message(&text).await {
-            return MsgResp::new_500_resp("fail to send telegram message", err);
-        };
+        data.bot.send_message(&text).await
     };
 
     let mut tasks = Vec::with_capacity(2);
