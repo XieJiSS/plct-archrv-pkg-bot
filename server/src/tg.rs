@@ -124,14 +124,26 @@ async fn listen_task(prop: BotProp, mut recver: UnboundedReceiver<String>) {
     }
 
     while let Some(text) = recver.recv().await {
-        // TODO: logging send failure
         let param = SendMsgParam {
             chat_id: group_id,
             text: text.to_string(),
             parse_mode: "HTML",
         };
 
+        tracing::trace!(full_content = text, "sending message");
         let resp = http.post(api.as_str()).json(&param).send().await;
+        if let Err(err) = &resp {
+            tracing::error!("fail to send request to telegram: {err}")
+        }
+        let resp = resp.unwrap();
+        if resp.status() != reqwest::StatusCode::OK {
+            let response = resp.json::<ErrorResp>().await;
+            if response.is_err() {
+                tracing::error!("fail to send request, also the api doesn't response as expected")
+            }
+            let response = response.unwrap();
+            tracing::error!("fail to send message: {}", response.description)
+        }
     }
 }
 
