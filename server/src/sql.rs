@@ -273,3 +273,61 @@ pub async fn remove_marks(
 
     Ok(deleted.into_iter().map(|mark| mark.name).collect())
 }
+
+pub struct PkgRelation {
+    relation: String,
+    related: Pkg,
+    required: Pkg,
+}
+
+pub enum PkgRelationSearchBy<'a> {
+    Related(&'a [&'a str]),
+    Required(&'a [&'a str]),
+}
+
+impl PkgRelation {
+    pub async fn search(
+        db_conn: &SqlitePool,
+        prop: PkgRelationSearchBy<'_>,
+    ) -> anyhow::Result<Vec<Self>> {
+        #[derive(sqlx::FromRow)]
+        struct Relation {
+            relation: String,
+            related: String,
+            required: String,
+        }
+
+        let query = match prop {
+            PkgRelationSearchBy::Related(pkg) => {
+                sqlx::query_as::<_, Relation>("SELECT * FROM pkg_relation WHERE related IN (?)")
+                    .bind(pkg.join(","))
+            }
+            PkgRelationSearchBy::Required(pkg) => {
+                sqlx::query_as::<_, Relation>("SELECT * FROM pkg_relation WHERE required IN (?)")
+                    .bind(pkg.join(","))
+            }
+        };
+        let relation = query.fetch_all(db_conn).await?;
+        let mut ret = Vec::new();
+        for row in relation {
+            let mut related_pkg_info = Pkg::search(db_conn, SearchPkgBy::Name(row.related)).await?;
+            let mut required_pkg_info =
+                Pkg::search(db_conn, SearchPkgBy::Name(row.required)).await?;
+            if related_pkg_info.is_empty() || required_pkg_info.is_empty() {
+                continue;
+            }
+            let pkg_relation = PkgRelation {
+                relation: row.relation,
+                related: related_pkg_info.swap_remove(0),
+                required: required_pkg_info.swap_remove(0),
+            };
+            ret.push(pkg_relation)
+        }
+        
+        if ret.is_empty() {
+            anyhow::bail!("no relation ship found on your argument")
+        }
+
+        Ok(ret)
+    }
+}

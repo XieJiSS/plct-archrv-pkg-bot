@@ -30,3 +30,11 @@ CREATE TABLE IF NOT EXISTS mark(
   FOREIGN KEY(for_pkg) REFERENCES pkg(id)
 );
 
+CREATE TABLE IF NOT EXISTS pkg_relation(
+  -- outdated_dep, missing_dep...etc
+  relation      TEXT NOT NULL,
+  -- if missing_dep, the dep pkg
+  related_pkg   INT NOT NULL,
+  -- which package require the `related_pkg` recover
+  required_pkg  INT NOT NULL
+);
