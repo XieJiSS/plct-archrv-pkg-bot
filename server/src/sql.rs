@@ -212,11 +212,11 @@ impl Pkg {
 /// # Example
 ///
 /// ```rust
-/// // remove all
+/// // remove all marks for package "rustup"
 /// remove_marks(&conn, "rustup")
 ///
-/// // remove marks that is "upstreamed" or "flaky"
-/// remove_marks(&conn, "rustup", Some(&["upstreamed", "flaky"]))
+/// // remove marks that is "upstreamed" or "flaky" for package "ltrace"
+/// remove_marks(&conn, "ltrace", Some(&["upstreamed", "flaky"]))
 /// ```
 pub async fn remove_marks(
     db_conn: &SqlitePool,
