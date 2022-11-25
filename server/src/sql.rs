@@ -187,22 +187,39 @@ pub struct Pkg {
     name: String,
 }
 
-pub enum SearchPkgProp {
-    ById(i64),
-    ByName(String),
+pub enum SearchPkgBy {
+    // search package by its database row id
+    Id(i64),
+    // search package by its name
+    Name(String),
+    // search pacakge by any mark that have specific comments
+    MarkWithComment(String, String),
 }
 
 impl Pkg {
-    async fn search(db_conn: &SqlitePool, prop: SearchPkgProp) -> anyhow::Result<Self> {
+    async fn search(db_conn: &SqlitePool, prop: SearchPkgBy) -> anyhow::Result<Vec<Self>> {
         let query = match prop {
-            SearchPkgProp::ById(id) => {
+            SearchPkgBy::Id(id) => {
                 sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE id=?").bind(id)
             }
-            SearchPkgProp::ByName(name) => {
+            SearchPkgBy::Name(name) => {
                 sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE name=?").bind(name)
             }
+            SearchPkgBy::MarkWithComment(mark, comment) => {
+                let matches: Vec<i64> = sqlx::query_scalar::<_, i64>(
+                    "SELECT for_pkg FROM mark WHERE name=? AND comment=?",
+                )
+                .bind(mark)
+                .bind(comment)
+                .fetch_all(db_conn)
+                .await?;
+
+                let matches: Vec<String> = matches.into_iter().map(|m| m.to_string()).collect();
+                sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE id IN (?)")
+                    .bind(matches.join(","))
+            }
         };
-        Ok(query.fetch_one(db_conn).await?)
+        Ok(query.fetch_all(db_conn).await?)
     }
 }
 
@@ -223,7 +240,11 @@ pub async fn remove_marks(
     pkgname: &str,
     matches: Option<&[&str]>,
 ) -> anyhow::Result<Vec<String>> {
-    let pkg = Pkg::search(db_conn, SearchPkgProp::ByName(pkgname.to_string())).await?;
+    let pkg = Pkg::search(db_conn, SearchPkgBy::Name(pkgname.to_string())).await?;
+    if pkg.is_empty() {
+        anyhow::bail!("package doesn't exist, fail to remove marks");
+    }
+    let pkg = &pkg[0];
 
     let query = if let Some(matches) = matches {
         if matches.is_empty() {
