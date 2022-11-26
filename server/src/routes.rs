@@ -170,7 +170,7 @@ pub(super) async fn delete(
             "ignore",
             "failing",
         ];
-        let result = sql::remove_marks(&data_ref.db_conn, &pkgname, Some(matches)).await;
+        let result = sql::Mark::remove(&data_ref.db_conn, &pkgname, Some(matches)).await;
         match result {
             Ok(deleted) => {
                 let marks = deleted.join(",");
@@ -204,17 +204,9 @@ pub(super) async fn delete(
                 .await;
             return;
         }
-        let (ready, partial_ready) = clear_result.unwrap();
-        let prefix = "<code>(auto-unmark)</code>";
-        for package in ready {
-            data.bot
-                .send_message(&format!("{prefix} {} 因 {} 已出包", package, pkgname))
-                .await;
-        }
-        for package in partial_ready {
-            data.bot
-                .send_message(&format!("{prefix} {} 已从 {} 中移除", pkgname, package))
-                .await;
+        let replies = clear_result.unwrap();
+        for repl in replies {
+            data.bot.send_message(&repl).await;
         }
     }));
 
@@ -229,12 +221,11 @@ pub(super) async fn delete(
 }
 
 // resolve the relation and auto cc
-// return two list, the first one is those become ready because the `pkgname` is ready.
-// The second one is those just become partial ready
+// prepare a list of replies and return
 async fn clear_related_package(
     db_conn: &sqlx::SqlitePool,
     pkgname: &str,
-) -> anyhow::Result<(Vec<String>, Vec<String>)> {
+) -> anyhow::Result<Vec<String>> {
     use sql::*;
     let related_mark = ["outdated_dep", "missing_dep"];
     // first search a list of package related with this ready package
@@ -250,8 +241,8 @@ async fn clear_related_package(
         anyhow::bail!("no relation found")
     }
 
-    let mut ready_pkg = Vec::new();
-    let mut partial_ready_pkg = Vec::new();
+    let mut replies = Vec::new();
+    let prefix = "<code>(auto-unmark)</code>";
     // then reverse search back, check that if the ready package is the only package of the
     // dependency list or a part of it, then take action on the different condition
     for package in requested {
@@ -274,10 +265,16 @@ async fn clear_related_package(
 
         // the package only required `pkgname` to be ready, so it's also ready
         if relation.len() == 1 {
-            remove_marks(db_conn, &rel.request.name, Some(&related_mark)).await?;
-            ready_pkg.push(rel.request.name.to_string());
+            Mark::remove(db_conn, &rel.request.name, Some(&[rel.relation.as_str()])).await?;
+            replies.push(format!(
+                "{prefix} {} 因 {} 已出包，不再标记为 {:?}",
+                rel.request.name, pkgname, rel.relation
+            ));
         } else {
-            partial_ready_pkg.push(rel.request.name.to_string());
+            replies.push(format!(
+                "{prefix} {} 已从 {} 的 {} 状态中移除",
+                pkgname, rel.request.name, rel.relation
+            ));
         }
 
         PkgRelation::remove(
@@ -288,5 +285,5 @@ async fn clear_related_package(
         .await?;
     }
 
-    Ok((ready_pkg, partial_ready_pkg))
+    Ok(replies)
 }
