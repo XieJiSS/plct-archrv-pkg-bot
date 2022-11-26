@@ -88,6 +88,32 @@ impl Mark {
         };
         Ok(query.fetch_all(db_conn).await?)
     }
+
+    /// Query the database and get list of packages with their marks
+    pub async fn fetch_all(db_conn: &SqlitePool) -> anyhow::Result<Vec<MarkListUnit>> {
+        let pkgs = sqlx::query_as::<_, Pkg>("SELECT * FROM pkg")
+            .fetch_all(db_conn)
+            .await?;
+        let mut mark_list = Vec::with_capacity(pkgs.len());
+        for p in pkgs {
+            let mut marks = Mark::search(db_conn, SearchMarksBy::PkgId(p.id)).await?;
+            if marks.is_empty() {
+                continue;
+            }
+
+            for m in &mut marks {
+                let tgid = m.marked_by;
+                let packager = find_packager(db_conn, FindPackagerProp::ByTgId(tgid)).await?;
+                m.by = Some(packager.alias);
+            }
+
+            mark_list.push(MarkListUnit {
+                name: p.name,
+                marks,
+            })
+        }
+        Ok(mark_list)
+    }
 }
 
 /// A single unit for the `/pkg` route markList response
@@ -97,44 +123,6 @@ pub struct MarkListUnit {
     name: String,
     /// List of mark attach to the package
     marks: Vec<Mark>,
-}
-
-/// Query the database and get list of packages with their marks
-pub async fn get_mark_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<MarkListUnit>> {
-    let pkgs: Vec<(i64, String)> = sqlx::query("SELECT id, name FROM pkg")
-        .map(|row: SqliteRow| (row.get("id"), row.get("name")))
-        .fetch_all(db_conn)
-        .await?;
-
-    let mut mark_list = Vec::with_capacity(pkgs.len());
-
-    for p in pkgs {
-        let (id, name) = p;
-
-        let mut marks = sqlx::query_as::<_, Mark>(
-            "SELECT
-               name, marked_by, marked_at, msg_id, comment
-             FROM mark
-             WHERE for_pkg=?",
-        )
-        .bind(id)
-        .fetch_all(db_conn)
-        .await?;
-
-        if marks.is_empty() {
-            continue;
-        }
-
-        for m in &mut marks {
-            let tgid = m.marked_by;
-            let packager = find_packager(db_conn, FindPackagerProp::ByTgId(tgid)).await?;
-            m.by = Some(packager.alias);
-        }
-
-        mark_list.push(MarkListUnit { name, marks })
-    }
-
-    Ok(mark_list)
 }
 
 /// Properties for finding an assignee

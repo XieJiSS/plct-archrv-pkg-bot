@@ -92,7 +92,7 @@ pub(super) async fn pkg(data: Data) -> HttpResponse {
         return MsgResp::new_500_resp("fail to get working list", err);
     }
 
-    let mark_list = sql::get_mark_list(&data.db_conn).await;
+    let mark_list = sql::Mark::fetch_all(&data.db_conn).await;
     if let Err(err) = mark_list {
         return MsgResp::new_500_resp("fail to get mark list", err);
     }
