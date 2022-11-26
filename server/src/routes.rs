@@ -263,6 +263,10 @@ async fn clear_related_package(
 
         let rel = &relation[position];
 
+        replies.push(format!(
+            "<code>(auto-cc)</code> ping {}:",
+            tg::gen_mention_link(&rel.created_by.alias, rel.created_by.tg_uid)
+        ));
         // the package only required `pkgname` to be ready, so it's also ready
         if relation.len() == 1 {
             Mark::remove(db_conn, &rel.request.name, Some(&[rel.relation.as_str()])).await?;

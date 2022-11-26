@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS pkg_relation(
   required     INT NOT NULL,
   -- which package require the `required` to be ready
   request      INT NOT NULL,
+  created_by   INT NOT NULL,
 
   FOREIGN KEY(required) REFERENCES pkg(id),
-  FOREIGN KEY(request) REFERENCES pkg(id)
+  FOREIGN KEY(request) REFERENCES pkg(id),
+  FOREIGN KEY(created_by) REFERENCES packager(tg_uid)
 );

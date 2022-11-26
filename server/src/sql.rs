@@ -292,6 +292,7 @@ pub struct PkgRelation {
     pub relation: String,
     pub request: Pkg,
     pub required: Pkg,
+    pub created_by: Packager,
 }
 
 /// The original data structure for convenient deserialize from database row
@@ -300,6 +301,7 @@ struct Relation {
     relation: String,
     required: String,
     request: String,
+    created_by: i64,
 }
 
 pub enum PkgRelationSearchBy<'a> {
@@ -315,6 +317,7 @@ impl PkgRelation {
                 Pkg::search(db_conn, SearchPkgBy::Name(row.request)).await?;
             let mut required_pkg_info =
                 Pkg::search(db_conn, SearchPkgBy::Name(row.required)).await?;
+            let packager = find_packager(db_conn, FindPackagerProp::ByTgId(row.created_by)).await?;
             if required_by_pkg_info.is_empty() || required_pkg_info.is_empty() {
                 continue;
             }
@@ -322,6 +325,7 @@ impl PkgRelation {
                 relation: row.relation,
                 request: required_by_pkg_info.swap_remove(0),
                 required: required_pkg_info.swap_remove(0),
+                created_by: packager,
             };
             ret.push(pkg_relation)
         }
@@ -362,14 +366,12 @@ impl PkgRelation {
                 "DELETE FROM pkg_relation WHERE related IN (?) AND relation=?",
             )
             .bind(pkg.join(","))
-            .bind(relation)
-            .bind(pkg.join(",")),
+            .bind(relation),
             PkgRelationSearchBy::Required(pkg) => sqlx::query_as::<_, Relation>(
                 "DELETE FROM pkg_relation WHERE required IN (?) AND relation=?",
             )
             .bind(pkg.join(","))
-            .bind(relation)
-            .bind(pkg.join(",")),
+            .bind(relation),
         };
 
         let deleted = query.fetch_all(db_conn).await?;
