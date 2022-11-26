@@ -44,24 +44,50 @@ pub async fn get_working_list(db_conn: &SqlitePool) -> anyhow::Result<Vec<WorkLi
 #[derive(serde::Serialize, sqlx::FromRow)]
 pub struct Mark {
     /// name of the mark
-    name: String,
+    pub name: String,
     /// Unix epoch timestamp represent when this mark generated. Use i64 here because sqlite
     /// doesn't support unsigned 64 bit integer number
-    marked_at: i64,
+    pub marked_at: i64,
     /// This is a private field which is used for unpack tg_uid column from query. So here skip the json
     /// serialization.
     #[serde(skip)]
-    marked_by: i64,
+    pub marked_by: i64,
     /// This is the public field for representing the alias name of the tg_uid field. It's value needs to
     /// be manually assigned. So by default sqlx will give it an Option::None value.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[sqlx(default)]
-    by: Option<String>,
+    pub by: Option<String>,
     /// Id of the message which generate this mark. Useful for targeting the discussion.
     /// Use i64 here because sqlite doesn't support unsigned 64bit integer number.
-    msg_id: i64,
+    pub msg_id: i64,
     /// Optional comment related with this mark
-    comment: String,
+    pub comment: String,
+    /// Which package is this mark for. Should be private so here I skip serialize it into JSON.
+    #[serde(skip)]
+    pub for_pkg: i64,
+}
+
+pub enum SearchMarksBy<'a> {
+    PkgId(i64),
+    NamePats(&'a [&'a str]),
+}
+
+impl Mark {
+    pub async fn search<'a>(
+        db_conn: &SqlitePool,
+        prop: SearchMarksBy<'a>,
+    ) -> anyhow::Result<Vec<Self>> {
+        let query = match prop {
+            SearchMarksBy::PkgId(id) => {
+                sqlx::query_as::<_, Self>("SELECT * FROM mark WHERE for_pkg=?").bind(id)
+            }
+            SearchMarksBy::NamePats(patterns) => {
+                sqlx::query_as::<_, Self>("SELECT * FROM mark WHERE name IN (?)")
+                    .bind(patterns.join(","))
+            }
+        };
+        Ok(query.fetch_all(db_conn).await?)
+    }
 }
 
 /// A single unit for the `/pkg` route markList response
@@ -183,8 +209,8 @@ pub async fn drop_assign(db_conn: &SqlitePool, pkgname: &str, packager: i64) -> 
 
 #[derive(sqlx::FromRow)]
 pub struct Pkg {
-    id: i64,
-    name: String,
+    pub id: i64,
+    pub name: String,
 }
 
 pub enum SearchPkgBy {
@@ -192,31 +218,16 @@ pub enum SearchPkgBy {
     Id(i64),
     // search package by its name
     Name(String),
-    // search pacakge by any mark that have specific comments
-    MarkWithComment(String, String),
 }
 
 impl Pkg {
-    async fn search(db_conn: &SqlitePool, prop: SearchPkgBy) -> anyhow::Result<Vec<Self>> {
+    pub async fn search(db_conn: &SqlitePool, prop: SearchPkgBy) -> anyhow::Result<Vec<Self>> {
         let query = match prop {
             SearchPkgBy::Id(id) => {
                 sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE id=?").bind(id)
             }
             SearchPkgBy::Name(name) => {
                 sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE name=?").bind(name)
-            }
-            SearchPkgBy::MarkWithComment(mark, comment) => {
-                let matches: Vec<i64> = sqlx::query_scalar::<_, i64>(
-                    "SELECT for_pkg FROM mark WHERE name=? AND comment=?",
-                )
-                .bind(mark)
-                .bind(comment)
-                .fetch_all(db_conn)
-                .await?;
-
-                let matches: Vec<String> = matches.into_iter().map(|m| m.to_string()).collect();
-                sqlx::query_as::<_, Self>("SELECT * FROM pkg WHERE id IN (?)")
-                    .bind(matches.join(","))
             }
         };
         Ok(query.fetch_all(db_conn).await?)
@@ -235,6 +246,7 @@ impl Pkg {
 /// // remove marks that is "upstreamed" or "flaky" for package "ltrace"
 /// remove_marks(&conn, "ltrace", Some(&["upstreamed", "flaky"]))
 /// ```
+/// TODO: merge this function into Mark struct's namespace
 pub async fn remove_marks(
     db_conn: &SqlitePool,
     pkgname: &str,
@@ -271,34 +283,71 @@ pub async fn remove_marks(
         anyhow::bail!("No marks found for this package")
     }
 
+    if let Some(marks) = matches {
+        for mark in marks {
+            if !["outdated_dep", "missing_dep"].contains(mark) {
+                continue;
+            }
+            // remove outdated_dep/missing_dep relationship when marks are cleared
+            PkgRelation::remove(db_conn, mark, PkgRelationSearchBy::Required(&[pkgname])).await?;
+        }
+    }
+
     Ok(deleted.into_iter().map(|mark| mark.name).collect())
 }
 
+/// Relation between packages, like outdate_deps.
 pub struct PkgRelation {
+    pub relation: String,
+    pub request: Pkg,
+    pub required: Pkg,
+}
+
+/// The original data structure for convenient deserialize from database row
+#[derive(sqlx::FromRow)]
+struct Relation {
     relation: String,
-    related: Pkg,
-    required: Pkg,
+    required: String,
+    request: String,
 }
 
 pub enum PkgRelationSearchBy<'a> {
-    Related(&'a [&'a str]),
+    Request(&'a [&'a str]),
     Required(&'a [&'a str]),
 }
 
 impl PkgRelation {
+    async fn wrap_up(db_conn: &SqlitePool, row: Vec<Relation>) -> anyhow::Result<Vec<Self>> {
+        let mut ret = Vec::new();
+        for row in row {
+            let mut required_by_pkg_info =
+                Pkg::search(db_conn, SearchPkgBy::Name(row.request)).await?;
+            let mut required_pkg_info =
+                Pkg::search(db_conn, SearchPkgBy::Name(row.required)).await?;
+            if required_by_pkg_info.is_empty() || required_pkg_info.is_empty() {
+                continue;
+            }
+            let pkg_relation = PkgRelation {
+                relation: row.relation,
+                request: required_by_pkg_info.swap_remove(0),
+                required: required_pkg_info.swap_remove(0),
+            };
+            ret.push(pkg_relation)
+        }
+
+        if ret.is_empty() {
+            anyhow::bail!("no relation ship found on your argument")
+        }
+
+        Ok(ret)
+    }
+
     pub async fn search(
         db_conn: &SqlitePool,
         prop: PkgRelationSearchBy<'_>,
     ) -> anyhow::Result<Vec<Self>> {
-        #[derive(sqlx::FromRow)]
-        struct Relation {
-            relation: String,
-            related: String,
-            required: String,
-        }
-
         let query = match prop {
-            PkgRelationSearchBy::Related(pkg) => {
+            PkgRelationSearchBy::Request(pkg) => {
                 sqlx::query_as::<_, Relation>("SELECT * FROM pkg_relation WHERE related IN (?)")
                     .bind(pkg.join(","))
             }
@@ -308,26 +357,32 @@ impl PkgRelation {
             }
         };
         let relation = query.fetch_all(db_conn).await?;
-        let mut ret = Vec::new();
-        for row in relation {
-            let mut related_pkg_info = Pkg::search(db_conn, SearchPkgBy::Name(row.related)).await?;
-            let mut required_pkg_info =
-                Pkg::search(db_conn, SearchPkgBy::Name(row.required)).await?;
-            if related_pkg_info.is_empty() || required_pkg_info.is_empty() {
-                continue;
-            }
-            let pkg_relation = PkgRelation {
-                relation: row.relation,
-                related: related_pkg_info.swap_remove(0),
-                required: required_pkg_info.swap_remove(0),
-            };
-            ret.push(pkg_relation)
-        }
-        
-        if ret.is_empty() {
-            anyhow::bail!("no relation ship found on your argument")
-        }
 
-        Ok(ret)
+        Self::wrap_up(db_conn, relation).await
+    }
+
+    pub async fn remove(
+        db_conn: &SqlitePool,
+        relation: &str,
+        prop: PkgRelationSearchBy<'_>,
+    ) -> anyhow::Result<Vec<Self>> {
+        let query = match prop {
+            PkgRelationSearchBy::Request(pkg) => sqlx::query_as::<_, Relation>(
+                "DELETE FROM pkg_relation WHERE related IN (?) AND relation=?",
+            )
+            .bind(pkg.join(","))
+            .bind(relation)
+            .bind(pkg.join(",")),
+            PkgRelationSearchBy::Required(pkg) => sqlx::query_as::<_, Relation>(
+                "DELETE FROM pkg_relation WHERE required IN (?) AND relation=?",
+            )
+            .bind(pkg.join(","))
+            .bind(relation)
+            .bind(pkg.join(",")),
+        };
+
+        let deleted = query.fetch_all(db_conn).await?;
+
+        Self::wrap_up(db_conn, deleted).await
     }
 }

@@ -1,6 +1,7 @@
 use super::{sql, tg};
 
 use actix_web::{get, web, HttpResponse};
+use anyhow::Context;
 
 /// Runtime necessary data.
 pub struct State {
@@ -152,10 +153,13 @@ pub(super) async fn delete(
     };
 
     let mut tasks = Vec::with_capacity(2);
+    // Data and pkgname memory will be moved into the below scope, so we need to copy the data for
+    // later task to use.
+    // actix_web::Data is just a wrapper for Arc, copy is cheap here. Pkgname is not some large
+    // data, so it is also accpetable to copy them.
+    let data_ref = data.clone();
+    let pkgname = path.pkgname.to_string();
     tasks.push(tokio::spawn(async move {
-        // actix_web::Data is just a wrapper for Arc, copy is cheap here.
-        let data = data.clone();
-        let pkgname = path.pkgname.to_string();
         let matches = &[
             "outdated",
             "stuck",
@@ -166,23 +170,51 @@ pub(super) async fn delete(
             "ignore",
             "failing",
         ];
-        let result = sql::remove_marks(&data.db_conn, &pkgname, Some(matches)).await;
+        let result = sql::remove_marks(&data_ref.db_conn, &pkgname, Some(matches)).await;
         match result {
             Ok(deleted) => {
                 let marks = deleted.join(",");
-                data.bot
+                data_ref
+                    .bot
                     .send_message(&format!(
                         "<code>(auto-unmark)</code> {pkgname} 已出包，不再标记为：{marks}"
                     ))
                     .await
             }
             Err(err) => {
-                data.bot
+                data_ref
+                    .bot
                     .send_message(&format!(
                         "fail to delete marks for {pkgname}: \n<code>{err}</code>"
                     ))
                     .await
             }
+        }
+    }));
+
+    // copy again
+    let pkgname = path.pkgname.to_string();
+    tasks.push(tokio::spawn(async move {
+        let clear_result = clear_related_package(&data.db_conn, &pkgname).await;
+        if let Err(err) = clear_result {
+            data.bot
+                .send_message(&format!(
+                    "fail to clean related package for {pkgname}\n\nDetails:\n{err}"
+                ))
+                .await;
+            return;
+        }
+        let (ready, partial_ready) = clear_result.unwrap();
+        let prefix = "<code>(auto-unmark)</code>";
+        for package in ready {
+            data.bot
+                .send_message(&format!("{prefix} {} 因 {} 已出包", package, pkgname))
+                .await;
+        }
+        for package in partial_ready {
+            data.bot
+                .send_message(&format!("{prefix} {} 已从 {} 中移除", pkgname, package))
+                .await;
         }
     }));
 
@@ -194,4 +226,67 @@ pub(super) async fn delete(
     }
 
     MsgResp::new_200_msg("package deleted")
+}
+
+// resolve the relation and auto cc
+// return two list, the first one is those become ready because the `pkgname` is ready.
+// The second one is those just become partial ready
+async fn clear_related_package(
+    db_conn: &sqlx::SqlitePool,
+    pkgname: &str,
+) -> anyhow::Result<(Vec<String>, Vec<String>)> {
+    use sql::*;
+    let related_mark = ["outdated_dep", "missing_dep"];
+    // first search a list of package related with this ready package
+    let requested: Vec<_> = PkgRelation::search(db_conn, PkgRelationSearchBy::Required(&[pkgname]))
+        .await
+        .with_context(|| "fail to search related package")?
+        .into_iter()
+        .filter(|rel| related_mark.contains(&rel.relation.as_str()))
+        .map(|rel| rel.request)
+        .collect();
+
+    if requested.is_empty() {
+        anyhow::bail!("no relation found")
+    }
+
+    let mut ready_pkg = Vec::new();
+    let mut partial_ready_pkg = Vec::new();
+    // then reverse search back, check that if the ready package is the only package of the
+    // dependency list or a part of it, then take action on the different condition
+    for package in requested {
+        let relation: Vec<_> = sql::PkgRelation::search(
+            db_conn,
+            PkgRelationSearchBy::Request(&[package.name.as_str()]),
+        )
+        .await?
+        .into_iter()
+        .filter(|rel| related_mark.contains(&rel.relation.as_str()))
+        .collect();
+        if relation.is_empty() {
+            continue;
+        }
+        let Some(position) = relation
+            .iter()
+            .position(|rel| rel.required.name == pkgname) else { continue; };
+
+        let rel = &relation[position];
+
+        // the package only required `pkgname` to be ready, so it's also ready
+        if relation.len() == 1 {
+            remove_marks(db_conn, &rel.request.name, Some(&related_mark)).await?;
+            ready_pkg.push(rel.request.name.to_string());
+        } else {
+            partial_ready_pkg.push(rel.request.name.to_string());
+        }
+
+        PkgRelation::remove(
+            db_conn,
+            &rel.relation,
+            PkgRelationSearchBy::Required(&[rel.required.name.as_str()]),
+        )
+        .await?;
+    }
+
+    Ok((ready_pkg, partial_ready_pkg))
 }
