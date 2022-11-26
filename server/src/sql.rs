@@ -9,6 +9,30 @@ pub struct Packager {
     pub alias: String,
 }
 
+/// Properties for finding an assignee
+pub enum FindPackagerBy<'a> {
+    Pkgname(&'a str),
+    TgId(i64),
+}
+
+impl Packager {
+    /// Find assignee information by multiple search property
+    pub async fn search<'a>(
+        db_conn: &SqlitePool,
+        props: FindPackagerBy<'a>,
+    ) -> anyhow::Result<Self> {
+        let query = match props {
+            FindPackagerBy::TgId(id) => sqlx::query_as("SELECT * FROM packager WHERE tg_uid=?").bind(id),
+            FindPackagerBy::Pkgname(name) => sqlx::query_as(
+                "SELECT * FROM packager WHERE tg_uid=(SELECT assignee FROM PKG WHERE name=?)",
+            )
+            .bind(name),
+        };
+        let packager = query.fetch_one(db_conn).await?;
+        Ok(packager)
+    }
+}
+
 /// A single unit of the workList
 #[derive(serde::Serialize)]
 pub struct WorkListUnit {
@@ -105,7 +129,7 @@ impl Mark {
 
             for m in &mut marks {
                 let tgid = m.marked_by;
-                let packager = find_packager(db_conn, FindPackagerProp::ByTgId(tgid)).await?;
+                let packager = Packager::search(db_conn, FindPackagerBy::TgId(tgid)).await?;
                 m.by = Some(packager.alias);
             }
 
@@ -188,37 +212,6 @@ pub struct MarkListUnit {
     name: String,
     /// List of mark attach to the package
     marks: Vec<Mark>,
-}
-
-/// Properties for finding an assignee
-pub enum FindPackagerProp<'a> {
-    ByPkgname(&'a str),
-    ByTgId(i64),
-}
-
-impl<'a> FindPackagerProp<'a> {
-    /// Generate query by corressbonding search property
-    fn gen_query(
-        self,
-    ) -> sqlx::query::QueryAs<'a, sqlx::Sqlite, Packager, sqlx::sqlite::SqliteArguments<'a>> {
-        match self {
-            Self::ByTgId(id) => sqlx::query_as("SELECT * FROM packager WHERE tg_uid=?").bind(id),
-            Self::ByPkgname(name) => sqlx::query_as(
-                "SELECT * FROM packager WHERE tg_uid=(SELECT assignee FROM PKG WHERE name=?)",
-            )
-            .bind(name),
-        }
-    }
-}
-
-/// Find assignee information by multiple search property
-pub async fn find_packager<'a>(
-    db_conn: &SqlitePool,
-    props: FindPackagerProp<'a>,
-) -> anyhow::Result<Packager> {
-    let query = props.gen_query();
-    let packager = query.fetch_one(db_conn).await?;
-    Ok(packager)
 }
 
 #[allow(unused)]
@@ -317,7 +310,7 @@ impl PkgRelation {
                 Pkg::search(db_conn, SearchPkgBy::Name(row.request)).await?;
             let mut required_pkg_info =
                 Pkg::search(db_conn, SearchPkgBy::Name(row.required)).await?;
-            let packager = find_packager(db_conn, FindPackagerProp::ByTgId(row.created_by)).await?;
+            let packager = Packager::search(db_conn, FindPackagerBy::TgId(row.created_by)).await?;
             if required_by_pkg_info.is_empty() || required_pkg_info.is_empty() {
                 continue;
             }

@@ -128,11 +128,8 @@ pub(super) async fn delete(
         return MsgResp::new_400_resp(format!("Required 'ftbfs' or 'leaf', get {}", path.status));
     }
 
-    let packager = sql::find_packager(
-        &data.db_conn,
-        sql::FindPackagerProp::ByPkgname(&path.pkgname),
-    )
-    .await;
+    let packager =
+        sql::Packager::search(&data.db_conn, sql::FindPackagerBy::Pkgname(&path.pkgname)).await;
     if let Err(err) = packager {
         return MsgResp::new_500_resp("fail to fetch packager", err);
     }
