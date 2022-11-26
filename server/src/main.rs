@@ -21,10 +21,12 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(11451);
     let auth_token = env::var("HTTP_API_TOKEN").with_context(|| "fail to get auth token")?;
     let bot_token = env::var("TGBOT_TOKEN").with_context(|| "fail to get bot token")?;
-    let group_id = env::var("GROUP_ID").map(|id| {
-        id.parse::<i64>()
-            .expect("GROUP_ID should be a valid signed 64bit integer number")
-    }).with_context(|| "fail to find group id")?;
+    let group_id = env::var("GROUP_ID")
+        .map(|id| {
+            id.parse::<i64>()
+                .expect("GROUP_ID should be a valid signed 64bit integer number")
+        })
+        .with_context(|| "fail to find group id")?;
 
     let bot = tg::BotHandler::new(&bot_token, group_id);
 
