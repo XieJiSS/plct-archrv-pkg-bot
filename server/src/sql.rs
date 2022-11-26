@@ -1,5 +1,7 @@
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 
+const RELATION_LIST: [&str; 2] = ["missing_dep", "outdated_dep"];
+
 /// Information of a packager
 #[derive(sqlx::FromRow)]
 pub struct Packager {
@@ -114,6 +116,69 @@ impl Mark {
         }
         Ok(mark_list)
     }
+
+    /// Remove marks for the given package. User can gives a list of extra matches to remove a range of
+    /// mark. Return a list of deleted marks.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// // remove all marks for package "rustup"
+    /// remove_marks(&conn, "rustup")
+    ///
+    /// // remove marks that is "upstreamed" or "flaky" for package "ltrace"
+    /// remove_marks(&conn, "ltrace", Some(&["upstreamed", "flaky"]))
+    /// ```
+    /// TODO: merge this function into Mark struct's namespace
+    pub async fn remove(
+        db_conn: &SqlitePool,
+        pkgname: &str,
+        matches: Option<&[&str]>,
+    ) -> anyhow::Result<Vec<String>> {
+        let pkg = Pkg::search(db_conn, SearchPkgBy::Name(pkgname.to_string())).await?;
+        if pkg.is_empty() {
+            anyhow::bail!("package doesn't exist, fail to remove marks");
+        }
+        let pkg = &pkg[0];
+
+        let query = if let Some(matches) = matches {
+            if matches.is_empty() {
+                anyhow::bail!("invalid matches argument");
+            }
+
+            // HACK: sqlx doesn't support Vec<T> as value, so I have to manually join them
+            // with comma. But it is very hacky and I can't guarantee it will work robustly.
+            // Tracking issue: https://github.com/launchbadge/sqlx/issues/875.
+            sqlx::query_as::<_, Mark>(
+                r#"DELETE FROM mark
+        WHERE for_pkg=? AND name IN ?
+        RETURNING *"#,
+            )
+            .bind(pkg.id)
+            .bind(matches.join(","))
+        } else {
+            // if user doesn't give us matches, remove all
+            sqlx::query_as::<_, Mark>("DELETE FROM mark WHERE for_pkg=? RETURNING *").bind(pkg.id)
+        };
+
+        let deleted = query.fetch_all(db_conn).await?;
+        if deleted.is_empty() {
+            anyhow::bail!("No marks found for this package")
+        }
+
+        if let Some(marks) = matches {
+            for mark in marks {
+                if !RELATION_LIST.contains(mark) {
+                    continue;
+                }
+                // remove outdated_dep/missing_dep relationship when marks are cleared
+                PkgRelation::remove(db_conn, mark, PkgRelationSearchBy::Required(&[pkgname]))
+                    .await?;
+            }
+        }
+
+        Ok(deleted.into_iter().map(|mark| mark.name).collect())
+    }
 }
 
 /// A single unit for the `/pkg` route markList response
@@ -220,68 +285,6 @@ impl Pkg {
         };
         Ok(query.fetch_all(db_conn).await?)
     }
-}
-
-/// Remove marks for the given package. User can gives a list of extra matches to remove a range of
-/// mark. Return a list of deleted marks.
-///
-/// # Example
-///
-/// ```rust
-/// // remove all marks for package "rustup"
-/// remove_marks(&conn, "rustup")
-///
-/// // remove marks that is "upstreamed" or "flaky" for package "ltrace"
-/// remove_marks(&conn, "ltrace", Some(&["upstreamed", "flaky"]))
-/// ```
-/// TODO: merge this function into Mark struct's namespace
-pub async fn remove_marks(
-    db_conn: &SqlitePool,
-    pkgname: &str,
-    matches: Option<&[&str]>,
-) -> anyhow::Result<Vec<String>> {
-    let pkg = Pkg::search(db_conn, SearchPkgBy::Name(pkgname.to_string())).await?;
-    if pkg.is_empty() {
-        anyhow::bail!("package doesn't exist, fail to remove marks");
-    }
-    let pkg = &pkg[0];
-
-    let query = if let Some(matches) = matches {
-        if matches.is_empty() {
-            anyhow::bail!("invalid matches argument");
-        }
-
-        // HACK: sqlx doesn't support Vec<T> as value, so I have to manually join them
-        // with comma. But it is very hacky and I can't guarantee it will work robustly.
-        // Tracking issue: https://github.com/launchbadge/sqlx/issues/875.
-        sqlx::query_as::<_, Mark>(
-            r#"DELETE FROM mark
-        WHERE for_pkg=? AND name IN ?
-        RETURNING *"#,
-        )
-        .bind(pkg.id)
-        .bind(matches.join(","))
-    } else {
-        // if user doesn't give us matches, remove all
-        sqlx::query_as::<_, Mark>("DELETE FROM mark WHERE for_pkg=? RETURNING *").bind(pkg.id)
-    };
-
-    let deleted = query.fetch_all(db_conn).await?;
-    if deleted.is_empty() {
-        anyhow::bail!("No marks found for this package")
-    }
-
-    if let Some(marks) = matches {
-        for mark in marks {
-            if !["outdated_dep", "missing_dep"].contains(mark) {
-                continue;
-            }
-            // remove outdated_dep/missing_dep relationship when marks are cleared
-            PkgRelation::remove(db_conn, mark, PkgRelationSearchBy::Required(&[pkgname])).await?;
-        }
-    }
-
-    Ok(deleted.into_iter().map(|mark| mark.name).collect())
 }
 
 /// Relation between packages, like outdate_deps.
