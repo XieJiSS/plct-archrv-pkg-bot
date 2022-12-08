@@ -32,13 +32,11 @@ interface PkgResponse {
   }[];
 }
 
-let server_pid = -1;
-
 const db = "test.db";
 const server_env = {
   "DATABASE_URL": `sqlite:${db}`,
-  "TGBOT_TOKEN": Deno.env.get("TEST_TGBOT_TOKEN") || "",
-  "GROUP_ID": Deno.env.get("TEST_GROUP_ID") || "",
+  "TGBOT_TOKEN": Deno.env.get("TEST_TGBOT_TOKEN") || "abcdefg",
+  "GROUP_ID": Deno.env.get("TEST_GROUP_ID") || "1234567",
   "HTTP_API_TOKEN": ((len: number) => {
     const literal = "abcdefghijklmnopqrstuvwxyz1234567890";
     const max = literal.length;
@@ -51,6 +49,8 @@ const server_env = {
   })(16),
 };
 
+let server_process: Deno.Process;
+
 beforeAll(async () => {
   try {
     const path = await Deno.realPath(db);
@@ -59,16 +59,18 @@ beforeAll(async () => {
     //-
   }
 
-  const migrate_status = await Deno.run({
+  const migrate_process = Deno.run({
     cmd: ["sqlx", "database", "setup"],
     env: {
       "DATABASE_URL": `sqlite:${db}`,
     },
-  }).status();
+  });
 
-  if (!migrate_status.success) {
+  if (!(await migrate_process.status()).success) {
     throw new Error("fail to migrate database, exit");
   }
+
+  migrate_process.close();
 
   const query = `
   PRAGMA foreign_keys = ON;
@@ -98,24 +100,26 @@ beforeAll(async () => {
   }
   sqlite3.close();
 
-  const compile_status = await Deno.run({
+  const compile_process = Deno.run({
     cmd: ["cargo", "build"],
-  }).status();
-  if (!compile_status.success) {
+  });
+  if (!(await compile_process.status()).success) {
     throw new Error("fail to compile server");
   }
+  compile_process.close();
 
-  const server_process = Deno.run({
+  const process = Deno.run({
     cmd: ["cargo", "run"],
     env: server_env,
   });
-  server_pid = server_process.pid;
+  server_process = process;
 
   await new Promise((r) => setTimeout(r, 2000));
 });
 
 afterAll(() => {
-  Deno.kill(server_pid, "SIGABRT");
+  server_process.kill("SIGABRT");
+  server_process.close();
 });
 
 describe("Test route /pkg", () => {
