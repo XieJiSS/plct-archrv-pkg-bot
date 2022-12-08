@@ -15,7 +15,8 @@ jobs:
         run: "pacman -Syu --noconfirm --needed
           git curl
           sqlx-cli sqlite jq
-          rust pkg-config openssl sccache"
+          rust pkg-config openssl sccache
+          deno"
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
@@ -43,5 +44,5 @@ jobs:
         run: |
           cd server
           cargo build
-          ./tests/server_test.sh
+          ./tests/server_test.ts
       - run: sccache --show-stats && sccache --stop-server || true
