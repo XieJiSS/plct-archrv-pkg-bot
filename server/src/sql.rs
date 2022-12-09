@@ -26,7 +26,14 @@ impl Packager {
                 sqlx::query_as("SELECT * FROM packager WHERE tg_uid=?").bind(id)
             }
             FindPackagerBy::Pkgname(name) => sqlx::query_as(
-                "SELECT * FROM packager WHERE tg_uid=(SELECT assignee FROM PKG WHERE name=?)",
+                r#"
+                SELECT * FROM packager
+                WHERE tg_uid=(
+                    SELECT assignee FROM assignment
+                    WHERE pkg=(
+                        SELECT id FROM PKG WHERE name=?
+                    )
+                )"#,
             )
             .bind(name),
         };
@@ -177,7 +184,7 @@ impl Mark {
             // Tracking issue: https://github.com/launchbadge/sqlx/issues/875.
             sqlx::query_as::<_, Mark>(
                 r#"DELETE FROM mark
-        WHERE for_pkg=? AND name IN ?
+        WHERE for_pkg=? AND name IN (?)
         RETURNING *"#,
             )
             .bind(pkg.id)
