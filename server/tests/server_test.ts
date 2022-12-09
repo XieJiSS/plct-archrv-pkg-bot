@@ -51,7 +51,11 @@ const server_env = {
 const backend_api = "http://localhost:11451";
 
 let server_process: Deno.Process;
-const mock_tg_server = Deno.listen({ port: 19198 });
+let mock_tg_server: Deno.Listener;
+
+function gen_mention_link(name: string, id: number) {
+  return `<a href="tg://user?id=${id}">${name}</a>`;
+}
 
 async function recv_msg() {
   interface Req {
@@ -61,7 +65,11 @@ async function recv_msg() {
   const httpReq = Deno.serveHttp(conn);
   const event = await httpReq.nextRequest();
   const req: Req = await event?.request.json();
-  event?.respondWith(new Response("OK", { status: 200 }));
+  await event?.respondWith(new Response("OK", { status: 200 }));
+
+  httpReq.close();
+  //conn.close();
+
   return req.text;
 }
 
@@ -129,12 +137,16 @@ beforeAll(async () => {
   });
   server_process = process;
 
+  mock_tg_server = Deno.listen({ port: 19198 });
+
   await new Promise((r) => setTimeout(r, 2000));
 });
 
 afterAll(() => {
   server_process.kill("SIGABRT");
   server_process.close();
+
+  mock_tg_server.close();
 });
 
 //-
@@ -204,12 +216,22 @@ describe("Test route /delete", () => {
   });
 
   //-
-  // describe("# Normal Request", () => {
-  //   it("1", async() => {
-  //     const url = new URL(
-  //       `/delete/electron8/ftbfs?`,
-  //       backend_api,
-  //     )
-  //   })
-  // })
+  describe("# Normal Request", () => {
+    it("1", async () => {
+      const url = new URL(
+        `/delete/electron8/ftbfs?token=${server_env.HTTP_API_TOKEN}`,
+        backend_api,
+      );
+      const resp: ErrorResponse = await fetch(url).then((r) => r.json());
+      assertEquals(resp.msg, "Request success");
+      assertEquals(resp.detail, "package deleted");
+      const msg1 = await recv_msg();
+      assertEquals(
+        msg1,
+        `<code>(auto-merge)</code> ping ${
+          gen_mention_link("Carl", 678901)
+        }: electron8 已出包\n`,
+      );
+    });
+  });
 });
