@@ -179,6 +179,9 @@ pub(super) async fn delete(
                     .await
             }
             Err(err) => {
+                if err.to_string().contains("No marks found") {
+                    return;
+                }
                 data_ref
                     .bot
                     .send_message(&format!(
@@ -194,6 +197,11 @@ pub(super) async fn delete(
     tasks.push(tokio::spawn(async move {
         let clear_result = clear_related_package(&data.db_conn, &pkgname).await;
         if let Err(err) = clear_result {
+            if let Some(src) = err.source() {
+                if src.to_string().contains("no relation ship found") {
+                    return;
+                }
+            }
             data.bot
                 .send_message(&format!(
                     "fail to clean related package for {pkgname}\n\nDetails:\n{err}"
