@@ -48,8 +48,22 @@ const server_env = {
     return result;
   })(16),
 };
+const backend_api = "http://localhost:11451";
 
 let server_process: Deno.Process;
+const mock_tg_server = Deno.listen({ port: 19198 });
+
+async function recv_msg() {
+  interface Req {
+    text: string;
+  }
+  const conn = await mock_tg_server.accept();
+  const httpReq = Deno.serveHttp(conn);
+  const event = await httpReq.nextRequest();
+  const req: Req = await event?.request.json();
+  event?.respondWith(new Response("OK", { status: 200 }));
+  return req.text;
+}
 
 beforeAll(async () => {
   try {
@@ -82,6 +96,7 @@ beforeAll(async () => {
 
   INSERT INTO mark VALUES("upstreamed", 123456, 1669088178, 18, "upstream fault...", 1);
   INSERT INTO mark VALUES("stuck",      678901, 1669088178, 89, "hard to port...", 2);
+  INSERT INTO mark VALUES("ftbfs",      678901, 1669088178, 90, "", 2);
 
   INSERT INTO assignment(pkg, assignee, assigned_at) VALUES(1, 123456, 1669088180);
   INSERT INTO assignment(pkg, assignee, assigned_at) VALUES(2, 678901, 1669088190);
@@ -122,6 +137,10 @@ afterAll(() => {
   server_process.close();
 });
 
+//-
+//- Test Main
+//-
+
 describe("Test route /pkg", () => {
   let pkg: PkgResponse;
   beforeAll(async () => {
@@ -149,4 +168,48 @@ describe("Test route /pkg", () => {
   it("#4", () => {
     assertEquals(pkg.markList[1].marks[0].comment, "hard to port...");
   });
+});
+
+describe("Test route /delete", () => {
+  //-
+
+  describe("# Invalid Request", () => {
+    it("invalid token", async () => {
+      const resp: ErrorResponse = await fetch(
+        new URL("/delete/test1/test2?token=invalid", backend_api),
+      ).then((r) => r.json());
+
+      assertEquals(resp.detail, "invalid token");
+    });
+
+    it("invalid status", async () => {
+      const url = new URL(
+        `/delete/test1/test2?token=${server_env.HTTP_API_TOKEN}`,
+        backend_api,
+      );
+      const resp: ErrorResponse = await fetch(url).then((r) => r.json());
+
+      assertEquals(resp.detail, "Required 'ftbfs' or 'leaf', get test2");
+    });
+
+    it("invalid package", async () => {
+      const url = new URL(
+        `/delete/test1/ftbfs?token=${server_env.HTTP_API_TOKEN}`,
+        backend_api,
+      );
+      const resp: ErrorResponse = await fetch(url).then((r) => r.json());
+
+      assertEquals(resp.msg, "fail to fetch packager");
+    });
+  });
+
+  //-
+  // describe("# Normal Request", () => {
+  //   it("1", async() => {
+  //     const url = new URL(
+  //       `/delete/electron8/ftbfs?`,
+  //       backend_api,
+  //     )
+  //   })
+  // })
 });
