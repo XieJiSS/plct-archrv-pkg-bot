@@ -17,6 +17,12 @@ use tokio::{
     time::interval,
 };
 
+#[cfg(not(debug_assertions))]
+const TELEGRAM_API: &str = "https://api.telegram.org/bot";
+
+#[cfg(debug_assertions)]
+const TELEGRAM_API: &str = "http://localhost:19198/bot";
+
 /// Runtime require information of a telegram bot.
 /// It is only used for operation, not for listening update.
 struct BotProp {
@@ -41,7 +47,7 @@ impl BotHandler {
     /// group_id to send notification.
     pub fn new(token: &str, group_id: i64) -> Self {
         use reqwest::{Client, Url};
-        let final_url = format!("https://api.telegram.org/bot{token}/");
+        let final_url = format!("{}{}/", TELEGRAM_API, token);
         let prop = BotProp {
             group_id,
             http: Client::new(),

@@ -22,7 +22,9 @@ impl Packager {
         props: FindPackagerBy<'a>,
     ) -> anyhow::Result<Self> {
         let query = match props {
-            FindPackagerBy::TgId(id) => sqlx::query_as("SELECT * FROM packager WHERE tg_uid=?").bind(id),
+            FindPackagerBy::TgId(id) => {
+                sqlx::query_as("SELECT * FROM packager WHERE tg_uid=?").bind(id)
+            }
             FindPackagerBy::Pkgname(name) => sqlx::query_as(
                 "SELECT * FROM packager WHERE tg_uid=(SELECT assignee FROM PKG WHERE name=?)",
             )
