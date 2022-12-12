@@ -165,19 +165,19 @@ describe("Test route /pkg", () => {
     pkg = await pkg_response.json();
   });
 
-  it("#1", () => {
+  it("Expect alias match", () => {
     assertEquals(pkg.workList[0].alias, "John");
   });
 
-  it("#2", () => {
+  it("Expect packages match", () => {
     assertEquals(pkg.workList[1].packages[0], "electron8");
   });
 
-  it("#3", () => {
+  it("Expect mark name match", () => {
     assertEquals(pkg.markList[0].marks[0].name, "upstreamed");
   });
 
-  it("#4", () => {
+  it("Expect comment match", () => {
     assertEquals(pkg.markList[1].marks[0].comment, "hard to port...");
   });
 });
@@ -185,8 +185,8 @@ describe("Test route /pkg", () => {
 describe("Test route /delete", () => {
   //-
 
-  describe("# Invalid Request", () => {
-    it("invalid token", async () => {
+  describe("Invalid request test", () => {
+    it("Expect invalid token", async () => {
       const resp: ErrorResponse = await fetch(
         new URL("/delete/test1/test2?token=invalid", backend_api),
       ).then((r) => r.json());
@@ -194,7 +194,7 @@ describe("Test route /delete", () => {
       assertEquals(resp.detail, "invalid token");
     });
 
-    it("invalid status", async () => {
+    it("Expect invalid status", async () => {
       const url = new URL(
         `/delete/test1/test2?token=${server_env.HTTP_API_TOKEN}`,
         backend_api,
@@ -204,7 +204,7 @@ describe("Test route /delete", () => {
       assertEquals(resp.detail, "Required 'ftbfs' or 'leaf', get test2");
     });
 
-    it("invalid package", async () => {
+    it("Expect invalid packager", async () => {
       const url = new URL(
         `/delete/test1/ftbfs?token=${server_env.HTTP_API_TOKEN}`,
         backend_api,
@@ -216,8 +216,8 @@ describe("Test route /delete", () => {
   });
 
   //-
-  describe("# Normal Request", () => {
-    it("1", async () => {
+  describe("Individual ready package test", () => {
+    it("Expect auto-merge message", async () => {
       const url = new URL(
         `/delete/electron8/ftbfs?token=${server_env.HTTP_API_TOKEN}`,
         backend_api,
