@@ -5,6 +5,7 @@ import { assertEquals } from "https://deno.land/std@0.167.0/testing/asserts.ts";
 import {
   afterAll,
   beforeAll,
+  beforeEach,
   describe,
   it,
 } from "https://deno.land/std@0.167.0/testing/bdd.ts";
@@ -34,10 +35,10 @@ interface PkgResponse {
 
 const db = "test.db";
 const server_env = {
-  "DATABASE_URL": `sqlite:${db}`,
-  "TGBOT_TOKEN": Deno.env.get("TEST_TGBOT_TOKEN") || "abcdefg",
-  "GROUP_ID": Deno.env.get("TEST_GROUP_ID") || "1234567",
-  "HTTP_API_TOKEN": ((len: number) => {
+  DATABASE_URL: `sqlite:${db}`,
+  TGBOT_TOKEN: Deno.env.get("TEST_TGBOT_TOKEN") || "abcdefg",
+  GROUP_ID: Deno.env.get("TEST_GROUP_ID") || "1234567",
+  HTTP_API_TOKEN: ((len: number) => {
     const literal = "abcdefghijklmnopqrstuvwxyz1234567890";
     const max = literal.length;
     let result = "";
@@ -73,6 +74,40 @@ async function recv_msg() {
   return req.text;
 }
 
+// Most of the sqlite3 binding for deno are doesn't support WAL.
+// Or required a pre-built share library. So using the sqlite3 executable
+// here is more efficient.
+async function sqlite3(query: string) {
+  const sqlite3 = Deno.run({
+    cmd: ["sqlite3", db],
+    stdin: "piped",
+  });
+  await sqlite3.stdin.write(new TextEncoder().encode(query));
+  sqlite3.stdin.close();
+
+  const prepare_status = await sqlite3.status();
+  if (!prepare_status) {
+    throw new Error("fail to insert query into prepare status");
+  }
+  sqlite3.close();
+}
+
+async function run_server() {
+  const compile_process = Deno.run({
+    cmd: ["cargo", "build"],
+  });
+  if (!(await compile_process.status()).success) {
+    throw new Error("fail to compile server");
+  }
+  compile_process.close();
+
+  const process = Deno.run({
+    cmd: ["cargo", "run"],
+    env: server_env,
+  });
+  server_process = process;
+}
+
 beforeAll(async () => {
   try {
     const path = await Deno.realPath(db);
@@ -84,7 +119,7 @@ beforeAll(async () => {
   const migrate_process = Deno.run({
     cmd: ["sqlx", "database", "setup"],
     env: {
-      "DATABASE_URL": `sqlite:${db}`,
+      DATABASE_URL: `sqlite:${db}`,
     },
   });
 
@@ -109,33 +144,9 @@ beforeAll(async () => {
   INSERT INTO assignment(pkg, assignee, assigned_at) VALUES(1, 123456, 1669088180);
   INSERT INTO assignment(pkg, assignee, assigned_at) VALUES(2, 678901, 1669088190);
 `;
+  await sqlite3(query);
 
-  const sqlite3 = Deno.run({
-    cmd: ["sqlite3", db],
-    stdin: "piped",
-  });
-  await sqlite3.stdin.write((new TextEncoder()).encode(query));
-  sqlite3.stdin.close();
-
-  const prepare_status = await sqlite3.status();
-  if (!prepare_status) {
-    throw new Error("fail to insert query into prepare status");
-  }
-  sqlite3.close();
-
-  const compile_process = Deno.run({
-    cmd: ["cargo", "build"],
-  });
-  if (!(await compile_process.status()).success) {
-    throw new Error("fail to compile server");
-  }
-  compile_process.close();
-
-  const process = Deno.run({
-    cmd: ["cargo", "run"],
-    env: server_env,
-  });
-  server_process = process;
+  await run_server();
 
   mock_tg_server = Deno.listen({ port: 19198 });
 
@@ -158,7 +169,7 @@ describe("Test route /pkg", () => {
   beforeAll(async () => {
     const pkg_response = await fetch("http://localhost:11451/pkg");
     if (!pkg_response.ok) {
-      const error = await pkg_response.json() as ErrorResponse;
+      const error = (await pkg_response.json()) as ErrorResponse;
       throw new Error(`fail to fetch /pkg: ${error.msg} : ${error.detail}`);
     }
 
@@ -188,7 +199,7 @@ describe("Test route /delete", () => {
   describe("Invalid request test", () => {
     it("Expect invalid token", async () => {
       const resp: ErrorResponse = await fetch(
-        new URL("/delete/test1/test2?token=invalid", backend_api),
+        new URL("/delete/test1/test2?token=invalid", backend_api)
       ).then((r) => r.json());
 
       assertEquals(resp.detail, "invalid token");
@@ -197,7 +208,7 @@ describe("Test route /delete", () => {
     it("Expect invalid status", async () => {
       const url = new URL(
         `/delete/test1/test2?token=${server_env.HTTP_API_TOKEN}`,
-        backend_api,
+        backend_api
       );
       const resp: ErrorResponse = await fetch(url).then((r) => r.json());
 
@@ -207,7 +218,7 @@ describe("Test route /delete", () => {
     it("Expect invalid packager", async () => {
       const url = new URL(
         `/delete/test1/ftbfs?token=${server_env.HTTP_API_TOKEN}`,
-        backend_api,
+        backend_api
       );
       const resp: ErrorResponse = await fetch(url).then((r) => r.json());
 
@@ -220,7 +231,7 @@ describe("Test route /delete", () => {
     it("Expect auto-merge message", async () => {
       const url = new URL(
         `/delete/electron8/ftbfs?token=${server_env.HTTP_API_TOKEN}`,
-        backend_api,
+        backend_api
       );
       const resp: ErrorResponse = await fetch(url).then((r) => r.json());
       assertEquals(resp.msg, "Request success");
@@ -228,10 +239,15 @@ describe("Test route /delete", () => {
       const msg1 = await recv_msg();
       assertEquals(
         msg1,
-        `<code>(auto-merge)</code> ping ${
-          gen_mention_link("Carl", 678901)
-        }: electron8 已出包\n`,
+        `<code>(auto-merge)</code> ping ${gen_mention_link(
+          "Carl",
+          678901
+        )}: electron8 已出包\n`
       );
     });
+  });
+
+  describe("Package relation test", () => {
+    beforeEach(async () => {});
   });
 });
