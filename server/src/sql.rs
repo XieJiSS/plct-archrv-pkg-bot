@@ -1,6 +1,10 @@
-use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
+use sqlx::{sqlite::SqliteRow, QueryBuilder, Row, SqlitePool};
 
 const RELATION_LIST: [&str; 2] = ["missing_dep", "outdated_dep"];
+
+fn build_placeholder(amount: usize) -> String {
+    vec!["?"; amount].join(",")
+}
 
 /// Information of a packager
 #[derive(sqlx::FromRow)]
@@ -174,40 +178,46 @@ impl Mark {
         }
         let pkg = &pkg[0];
 
-        let query = if let Some(matches) = matches {
+        let deleted;
+        if let Some(matches) = matches {
             if matches.is_empty() {
                 anyhow::bail!("invalid matches argument");
             }
 
-            // HACK: sqlx doesn't support Vec<T> as value, so I have to manually join them
-            // with comma. But it is very hacky and I can't guarantee it will work robustly.
-            // Tracking issue: https://github.com/launchbadge/sqlx/issues/875.
-            sqlx::query_as::<_, Mark>(
+            let query = format!(
                 r#"DELETE FROM mark
-        WHERE for_pkg=? AND name IN (?)
-        RETURNING *"#,
-            )
-            .bind(pkg.id)
-            .bind(matches.join(","))
-        } else {
-            // if user doesn't give us matches, remove all
-            sqlx::query_as::<_, Mark>("DELETE FROM mark WHERE for_pkg=? RETURNING *").bind(pkg.id)
-        };
+            WHERE
+                for_pkg=?
+            AND
+                name IN ({})
+            RETURNING *"#,
+                vec!["?"; matches.len()].join(",")
+            );
 
-        let deleted = query.fetch_all(db_conn).await?;
-        if deleted.is_empty() {
-            anyhow::bail!("No marks found for this package")
-        }
+            let mut query = sqlx::query_as::<_, Mark>(&query).bind(pkg.id);
+            for mark in matches {
+                query = query.bind(mark);
+            }
+            deleted = query.fetch_all(db_conn).await?;
 
-        if let Some(marks) = matches {
-            for mark in marks {
+            for mark in matches {
                 if !RELATION_LIST.contains(mark) {
                     continue;
                 }
                 // remove outdated_dep/missing_dep relationship when marks are cleared
-                PkgRelation::remove(db_conn, mark, PkgRelationSearchBy::Required(&[pkgname]))
+                PkgRelation::remove(db_conn, mark, PkgRelationSearchBy::Related(&[pkgname]))
                     .await?;
             }
+        } else {
+            // if user doesn't give us matches, remove all
+            deleted = sqlx::query_as::<_, Mark>("DELETE FROM mark WHERE for_pkg=? RETURNING *")
+                .bind(pkg.id)
+                .fetch_all(db_conn)
+                .await?;
+        }
+
+        if deleted.is_empty() {
+            anyhow::bail!("No marks found for this package")
         }
 
         Ok(deleted.into_iter().map(|mark| mark.name).collect())
@@ -301,14 +311,14 @@ pub struct PkgRelation {
 #[derive(sqlx::FromRow)]
 struct Relation {
     relation: String,
-    required: String,
-    request: String,
+    require: String,
+    related: String,
     created_by: i64,
 }
 
 pub enum PkgRelationSearchBy<'a> {
-    Request(&'a [&'a str]),
-    Required(&'a [&'a str]),
+    Require(&'a [&'a str]),
+    Related(&'a [&'a str]),
 }
 
 impl PkgRelation {
@@ -316,9 +326,9 @@ impl PkgRelation {
         let mut ret = Vec::new();
         for row in row {
             let mut required_by_pkg_info =
-                Pkg::search(db_conn, SearchPkgBy::Name(row.request)).await?;
+                Pkg::search(db_conn, SearchPkgBy::Name(row.related)).await?;
             let mut required_pkg_info =
-                Pkg::search(db_conn, SearchPkgBy::Name(row.required)).await?;
+                Pkg::search(db_conn, SearchPkgBy::Name(row.require)).await?;
             let packager = Packager::search(db_conn, FindPackagerBy::TgId(row.created_by)).await?;
             if required_by_pkg_info.is_empty() || required_pkg_info.is_empty() {
                 continue;
@@ -333,7 +343,7 @@ impl PkgRelation {
         }
 
         if ret.is_empty() {
-            anyhow::bail!("no relation ship found on your argument")
+            anyhow::bail!("no relationship found on your argument")
         }
 
         Ok(ret)
@@ -343,17 +353,29 @@ impl PkgRelation {
         db_conn: &SqlitePool,
         prop: PkgRelationSearchBy<'_>,
     ) -> anyhow::Result<Vec<Self>> {
-        let query = match prop {
-            PkgRelationSearchBy::Request(pkg) => {
-                sqlx::query_as::<_, Relation>("SELECT * FROM pkg_relation WHERE related IN (?)")
-                    .bind(pkg.join(","))
+        macro_rules! query_builder {
+            ($cond:literal, $tuple:expr) => {{
+                let raw = format!(
+                    "SELECT * FROM pkg_relation WHERE {} IN ({})",
+                    $cond,
+                    build_placeholder($tuple.len())
+                );
+                let mut query = sqlx::query_as::<_, Relation>(&raw);
+                for elem in $tuple {
+                    query = query.bind(elem)
+                }
+                query.fetch_all(db_conn).await?
+            }};
+        }
+
+        let relation = match prop {
+            PkgRelationSearchBy::Require(pkg) => {
+                query_builder!("require", pkg)
             }
-            PkgRelationSearchBy::Required(pkg) => {
-                sqlx::query_as::<_, Relation>("SELECT * FROM pkg_relation WHERE required IN (?)")
-                    .bind(pkg.join(","))
+            PkgRelationSearchBy::Related(pkg) => {
+                query_builder!("related", pkg)
             }
         };
-        let relation = query.fetch_all(db_conn).await?;
 
         Self::wrap_up(db_conn, relation).await
     }
@@ -363,20 +385,26 @@ impl PkgRelation {
         relation: &str,
         prop: PkgRelationSearchBy<'_>,
     ) -> anyhow::Result<Vec<Self>> {
-        let query = match prop {
-            PkgRelationSearchBy::Request(pkg) => sqlx::query_as::<_, Relation>(
-                "DELETE FROM pkg_relation WHERE related IN (?) AND relation=?",
-            )
-            .bind(pkg.join(","))
-            .bind(relation),
-            PkgRelationSearchBy::Required(pkg) => sqlx::query_as::<_, Relation>(
-                "DELETE FROM pkg_relation WHERE required IN (?) AND relation=?",
-            )
-            .bind(pkg.join(","))
-            .bind(relation),
-        };
+        // use macro to avoid resolve lifetime
+        macro_rules! query_builder {
+            ($cond:literal, $tuple:expr) => {{
+                let raw = format!(
+                    "DELETE FROM pkg_relation WHERE relation=? AND {} IN ({})",
+                    $cond,
+                    build_placeholder($tuple.len())
+                );
+                let mut query = sqlx::query_as::<_, Relation>(&raw).bind(relation);
+                for elem in $tuple {
+                    query = query.bind(elem);
+                }
+                query.fetch_all(db_conn).await?
+            }};
+        }
 
-        let deleted = query.fetch_all(db_conn).await?;
+        let deleted = match prop {
+            PkgRelationSearchBy::Require(pkg) => query_builder!("request", pkg),
+            PkgRelationSearchBy::Related(pkg) => query_builder!("related", pkg),
+        };
 
         Self::wrap_up(db_conn, deleted).await
     }

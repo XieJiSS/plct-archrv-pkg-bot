@@ -166,6 +166,8 @@ pub(super) async fn delete(
             "unknown",
             "ignore",
             "failing",
+            "ftbfs",
+            "leaf",
         ];
         let result = sql::Mark::remove(&data_ref.db_conn, &pkgname, Some(matches)).await;
         match result {
@@ -179,7 +181,8 @@ pub(super) async fn delete(
                     .await
             }
             Err(err) => {
-                if err.to_string().contains("No marks found") {
+                let err = err.to_string();
+                if err.contains("No marks found") || err.contains("no relationship found") {
                     return;
                 }
                 data_ref
@@ -234,7 +237,7 @@ async fn clear_related_package(
     use sql::*;
     let related_mark = ["outdated_dep", "missing_dep"];
     // first search a list of package related with this ready package
-    let requested: Vec<_> = PkgRelation::search(db_conn, PkgRelationSearchBy::Required(&[pkgname]))
+    let requested: Vec<_> = PkgRelation::search(db_conn, PkgRelationSearchBy::Related(&[pkgname]))
         .await
         .with_context(|| "fail to search related package")?
         .into_iter()
@@ -253,7 +256,7 @@ async fn clear_related_package(
     for package in requested {
         let relation: Vec<_> = sql::PkgRelation::search(
             db_conn,
-            PkgRelationSearchBy::Request(&[package.name.as_str()]),
+            PkgRelationSearchBy::Require(&[package.name.as_str()]),
         )
         .await?
         .into_iter()
@@ -289,7 +292,7 @@ async fn clear_related_package(
         PkgRelation::remove(
             db_conn,
             &rel.relation,
-            PkgRelationSearchBy::Required(&[rel.required.name.as_str()]),
+            PkgRelationSearchBy::Related(&[rel.required.name.as_str()]),
         )
         .await?;
     }
