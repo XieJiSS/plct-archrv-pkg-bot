@@ -48,6 +48,7 @@ const server_env = {
 
     return result;
   })(16),
+  RUST_BACKTRACE: "1",
 };
 const backend_api = "http://localhost:11451";
 
@@ -94,7 +95,9 @@ async function sqlite3(query: string) {
 
 async function run_server() {
   const compile_process = Deno.run({
-    cmd: ["cargo", "build"],
+    cmd: ["cargo", "build", "--quiet"],
+    stdout: "null",
+    stderr: "null",
   });
   if (!(await compile_process.status()).success) {
     throw new Error("fail to compile server");
@@ -102,7 +105,9 @@ async function run_server() {
   compile_process.close();
 
   const process = Deno.run({
-    cmd: ["cargo", "run"],
+    cmd: ["cargo", "run", "--quiet"],
+    stdout: "null",
+    stderr: "null",
     env: server_env,
   });
   server_process = process;
@@ -245,9 +250,5 @@ describe("Test route /delete", () => {
         )}: electron8 已出包\n`
       );
     });
-  });
-
-  describe("Package relation test", () => {
-    beforeEach(async () => {});
   });
 });
