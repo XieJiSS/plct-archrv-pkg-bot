@@ -200,10 +200,8 @@ pub(super) async fn delete(
     tasks.push(tokio::spawn(async move {
         let clear_result = clear_related_package(&data.db_conn, &pkgname).await;
         if let Err(err) = clear_result {
-            if let Some(src) = err.source() {
-                if src.to_string().contains("no relation ship found") {
-                    return;
-                }
+            if err.to_string().contains("no relationship found") {
+                return;
             }
             data.bot
                 .send_message(&format!(
@@ -238,8 +236,7 @@ async fn clear_related_package(
     let related_mark = ["outdated_dep", "missing_dep"];
     // first search a list of package related with this ready package
     let requested: Vec<_> = PkgRelation::search(db_conn, PkgRelationSearchBy::Related(&[pkgname]))
-        .await
-        .with_context(|| "fail to search related package")?
+        .await?
         .into_iter()
         .filter(|rel| related_mark.contains(&rel.relation.as_str()))
         .map(|rel| rel.request)

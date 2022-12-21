@@ -1,3 +1,4 @@
+use anyhow::Context;
 use sqlx::{sqlite::SqliteRow, QueryBuilder, Row, SqlitePool};
 
 const RELATION_LIST: [&str; 2] = ["missing_dep", "outdated_dep"];
@@ -364,7 +365,10 @@ impl PkgRelation {
                 for elem in $tuple {
                     query = query.bind(elem)
                 }
-                query.fetch_all(db_conn).await?
+                query
+                    .fetch_all(db_conn)
+                    .await
+                    .with_context(|| format!("fail to search {} package", $cond))?
             }};
         }
 
