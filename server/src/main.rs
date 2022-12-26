@@ -28,6 +28,12 @@ async fn main() -> anyhow::Result<()> {
         })
         .with_context(|| "fail to find group id")?;
 
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_thread_names(true)
+        .with_max_level(tracing::Level::ERROR)
+        .init();
+
     let bot = tg::BotHandler::new(&bot_token, group_id);
 
     let state = routes::State {
