@@ -167,7 +167,6 @@ impl Mark {
     /// // remove marks that is "upstreamed" or "flaky" for package "ltrace"
     /// remove_marks(&conn, "ltrace", Some(&["upstreamed", "flaky"]))
     /// ```
-    /// TODO: merge this function into Mark struct's namespace
     pub async fn remove(
         db_conn: &SqlitePool,
         pkgname: &str,
