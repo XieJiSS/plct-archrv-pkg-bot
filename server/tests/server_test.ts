@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno test -A
 
 import "https://deno.land/std@0.167.0/dotenv/load.ts";
-import { assertEquals } from "https://deno.land/std@0.167.0/testing/asserts.ts";
+import { assert, assertEquals } from "https://deno.land/std@0.167.0/testing/asserts.ts";
 import {
   afterAll,
   beforeAll,
@@ -226,8 +226,10 @@ describe("Test route /delete", () => {
         backend_api
       );
       const resp: ErrorResponse = await fetch(url).then((r) => r.json());
+      assertEquals(resp.msg, "Error occur when deleting mark");
 
-      assertEquals(resp.msg, "fail to fetch packager");
+      const msg1 = await recv_msg();
+      assert(msg1.search("fail to delete marks for test1") !== -1)
     });
   });
 
