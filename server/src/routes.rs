@@ -1,7 +1,6 @@
 use super::{sql, tg};
 
 use actix_web::{get, web, HttpResponse};
-use anyhow::Context;
 
 /// Runtime necessary data.
 pub struct State {
@@ -114,6 +113,77 @@ pub struct RouteDeleteQuery {
     token: String,
 }
 
+async fn notify_assignee(
+    db_conn: &sqlx::SqlitePool,
+    bot: &tg::BotHandler,
+    pkgname: &str,
+) -> Result<(), actix_web::HttpResponse> {
+    let packager = sql::Packager::search(db_conn, sql::FindPackagerBy::Pkgname(pkgname)).await;
+    if let Err(err) = &packager {
+        match err.downcast_ref::<sqlx::Error>() {
+            Some(sqlx::Error::RowNotFound) => return Ok(()), // expected
+            Some(&_) | None => return Err(MsgResp::new_500_resp("fail to fetch packager", err)),
+        }
+    }
+
+    let packager = packager.unwrap();
+
+    let prefix = "<code>(auto-merge)</code>";
+    let text = format!(
+        "{prefix} ping {}: {} 已出包",
+        tg::gen_mention_link(&packager.alias, packager.tg_uid),
+        pkgname
+    );
+
+    bot.send_message(&text).await;
+
+    if let Err(err) = sql::drop_assign(db_conn, pkgname, packager.tg_uid).await {
+        let text = format!("{prefix} failed: {err}");
+        bot.send_message(&text).await
+    };
+
+    Ok(())
+}
+
+async fn remove_mark(
+    db_conn: &sqlx::SqlitePool,
+    bot: &tg::BotHandler,
+    pkgname: &str,
+) -> anyhow::Result<()> {
+    let matches = &[
+        "outdated",
+        "stuck",
+        "ready",
+        "outdated_dep",
+        "missing_dep",
+        "unknown",
+        "ignore",
+        "failing",
+        "ftbfs",
+        "leaf",
+    ];
+    let result = sql::Mark::remove(db_conn, pkgname, Some(matches)).await;
+    match result {
+        Ok(deleted) => {
+            let marks = deleted.join(",");
+            bot.send_message(&format!(
+                "<code>(auto-unmark)</code> {pkgname} 已出包，不再标记为：{marks}"
+            ))
+            .await;
+            Ok(())
+        }
+        Err(err) => {
+            let err = err.to_string();
+            if err.contains("No marks found") || err.contains("no relationship found") {
+                return Ok(());
+            }
+            let msg = format!("fail to delete marks for {pkgname}: \n<code>{err}</code>");
+            bot.send_message(&msg).await;
+            anyhow::bail!(msg)
+        }
+    }
+}
+
 #[get("/delete/{pkgname}/{status}")]
 pub(super) async fn delete(
     path: web::Path<RouteDeletePathSegment>,
@@ -128,99 +198,42 @@ pub(super) async fn delete(
         return MsgResp::new_400_resp(format!("Required 'ftbfs' or 'leaf', get {}", path.status));
     }
 
-    let packager =
-        sql::Packager::search(&data.db_conn, sql::FindPackagerBy::Pkgname(&path.pkgname)).await;
-    if let Err(err) = packager {
-        return MsgResp::new_500_resp("fail to fetch packager", err);
-    }
-    let packager = packager.unwrap();
-
-    let prefix = "<code>(auto-merge)</code>";
-    let text = format!(
-        "{prefix} ping {}: {} 已出包",
-        tg::gen_mention_link(&packager.alias, packager.tg_uid),
-        path.pkgname
-    );
-
-    data.bot.send_message(&text).await;
-
-    if let Err(err) = sql::drop_assign(&data.db_conn, &path.pkgname, packager.tg_uid).await {
-        let text = format!("{prefix} failed: {err}");
-        data.bot.send_message(&text).await
+    // #1: notify assignee this package is ready
+    if let Err(resp) = notify_assignee(&data.db_conn, &data.bot, &path.pkgname).await {
+        return resp;
     };
 
-    let mut tasks = Vec::with_capacity(2);
-    // Data and pkgname memory will be moved into the below scope, so we need to copy the data for
-    // later task to use.
-    // actix_web::Data is just a wrapper for Arc, copy is cheap here. Pkgname is not some large
-    // data, so it is also accpetable to copy them.
+    // #2: clear unhealthy marks
     let data_ref = data.clone();
     let pkgname = path.pkgname.to_string();
-    tasks.push(tokio::spawn(async move {
-        let matches = &[
-            "outdated",
-            "stuck",
-            "ready",
-            "outdated_dep",
-            "missing_dep",
-            "unknown",
-            "ignore",
-            "failing",
-            "ftbfs",
-            "leaf",
-        ];
-        let result = sql::Mark::remove(&data_ref.db_conn, &pkgname, Some(matches)).await;
-        match result {
-            Ok(deleted) => {
-                let marks = deleted.join(",");
-                data_ref
-                    .bot
-                    .send_message(&format!(
-                        "<code>(auto-unmark)</code> {pkgname} 已出包，不再标记为：{marks}"
-                    ))
-                    .await
-            }
-            Err(err) => {
-                let err = err.to_string();
-                if err.contains("No marks found") || err.contains("no relationship found") {
-                    return;
-                }
-                data_ref
-                    .bot
-                    .send_message(&format!(
-                        "fail to delete marks for {pkgname}: \n<code>{err}</code>"
-                    ))
-                    .await
-            }
-        }
-    }));
+    let task2 =
+        tokio::spawn(async move { remove_mark(&data_ref.db_conn, &data_ref.bot, &pkgname).await });
 
-    // copy again
+    // #3: clear unhealthy relationship
     let pkgname = path.pkgname.to_string();
-    tasks.push(tokio::spawn(async move {
+    let task3 = tokio::spawn(async move {
         let clear_result = clear_related_package(&data.db_conn, &pkgname).await;
         if let Err(err) = clear_result {
             if err.to_string().contains("no relationship found") {
-                return;
+                return Ok(());
             }
-            data.bot
-                .send_message(&format!(
-                    "fail to clean related package for {pkgname}\n\nDetails:\n{err}"
-                ))
-                .await;
-            return;
+            let msg = format!("fail to clean related package for {pkgname}\n\nDetails:\n{err}");
+            data.bot.send_message(&msg).await;
+            anyhow::bail!(msg)
         }
         let replies = clear_result.unwrap();
         for repl in replies {
             data.bot.send_message(&repl).await;
         }
-    }));
+        Ok(())
+    });
 
-    for t in tasks {
-        let result = t.await;
-        if let Err(err) = result {
-            MsgResp::new_500_resp("Execution fail", err);
-        }
+    if let Err(err) = task2.await.unwrap() {
+        return MsgResp::new_500_resp("Error occur when deleting mark", err);
+    }
+
+    if let Err(err) = task3.await.unwrap() {
+        return MsgResp::new_500_resp("Error occur when deleting relationship", err);
     }
 
     MsgResp::new_200_msg("package deleted")
