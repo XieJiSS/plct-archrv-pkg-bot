@@ -1,11 +1,13 @@
 #!/usr/bin/env -S deno test -A
 
 import "https://deno.land/std@0.167.0/dotenv/load.ts";
-import { assert, assertEquals } from "https://deno.land/std@0.167.0/testing/asserts.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.167.0/testing/asserts.ts";
 import {
   afterAll,
   beforeAll,
-  beforeEach,
   describe,
   it,
 } from "https://deno.land/std@0.167.0/testing/bdd.ts";
@@ -54,6 +56,7 @@ const backend_api = "http://localhost:11451";
 
 let server_process: Deno.Process;
 let mock_tg_server: Deno.Listener;
+let httpConn: Deno.HttpConn;
 
 function gen_mention_link(name: string, id: number) {
   return `<a href="tg://user?id=${id}">${name}</a>`;
@@ -63,15 +66,22 @@ async function recv_msg() {
   interface Req {
     text: string;
   }
-  const conn = await mock_tg_server.accept();
-  const httpReq = Deno.serveHttp(conn);
-  const event = await httpReq.nextRequest();
-  const req: Req = await event?.request.json();
-  await event?.respondWith(new Response("OK", { status: 200 }));
 
-  httpReq.close();
-  //conn.close();
+  if (httpConn === undefined) {
+    httpConn = Deno.serveHttp(await mock_tg_server.accept());
+  }
 
+  let event = await httpConn.nextRequest();
+  if (event === null) {
+    httpConn = Deno.serveHttp(await mock_tg_server.accept());
+    event = await httpConn.nextRequest();
+    if (event === null) {
+      return "null";
+    }
+  }
+
+  const req: Req = await event.request.json();
+  await event.respondWith(new Response("OK", { status: 200 }));
   return req.text;
 }
 
@@ -162,6 +172,7 @@ afterAll(() => {
   server_process.kill("SIGABRT");
   server_process.close();
 
+  httpConn.close();
   mock_tg_server.close();
 });
 
@@ -198,7 +209,7 @@ describe("Test route /pkg", () => {
   });
 });
 
-describe("Test route /delete", () => {
+describe("Test route /delete", { sanitizeResources: false }, () => {
   //-
 
   describe("Invalid request test", () => {
@@ -229,7 +240,8 @@ describe("Test route /delete", () => {
       assertEquals(resp.msg, "Error occur when deleting mark");
 
       const msg1 = await recv_msg();
-      assert(msg1.search("fail to delete marks for test1") !== -1)
+      assert(msg1 !== null);
+      assert(msg1.search("fail to delete marks for test1") !== -1);
     });
   });
 
