@@ -243,33 +243,35 @@ pub struct Assignment {
     assigned_at: i64,
 }
 
-/// Drop assignment by pkgname and packager id
-pub async fn drop_assign(db_conn: &SqlitePool, pkgname: &str, packager: i64) -> anyhow::Result<()> {
-    let pkginfo: Vec<Assignment> = sqlx::query_as("SELECT * FROM assignment WHERE assignee=?")
-        .bind(packager)
-        .fetch_all(db_conn)
-        .await?;
+impl Assignment {
+    /// Drop assignment by pkgname and packager id
+    pub async fn drop(db_conn: &SqlitePool, pkgname: &str, packager: i64) -> anyhow::Result<()> {
+        let pkginfo: Vec<Assignment> = sqlx::query_as("SELECT * FROM assignment WHERE assignee=?")
+            .bind(packager)
+            .fetch_all(db_conn)
+            .await?;
 
-    if pkginfo.is_empty() {
-        anyhow::bail!("你还没有认领任何 package")
+        if pkginfo.is_empty() {
+            anyhow::bail!("你还没有认领任何 package")
+        }
+
+        let pkg_id: i64 = sqlx::query("SELECT id FROM pkg WHERE name=?")
+            .bind(pkgname)
+            .map(|row: SqliteRow| row.get("id"))
+            .fetch_one(db_conn)
+            .await?;
+
+        let Some(pending_drop) = pkginfo.iter().find(|pkg| pkg.pkg_id == pkg_id) else {
+            anyhow::bail!("这个 package 不在你的认领记录里")
+        };
+
+        sqlx::query("DELETE FROM assignment WHERE id=?")
+            .bind(pending_drop.id)
+            .execute(db_conn)
+            .await?;
+
+        Ok(())
     }
-
-    let pkg_id: i64 = sqlx::query("SELECT id FROM pkg WHERE name=?")
-        .bind(pkgname)
-        .map(|row: SqliteRow| row.get("id"))
-        .fetch_one(db_conn)
-        .await?;
-
-    let Some(pending_drop) = pkginfo.iter().find(|pkg| pkg.pkg_id == pkg_id) else {
-        anyhow::bail!("这个 package 不在你的认领记录里")
-    };
-
-    sqlx::query("DELETE FROM assignment WHERE id=?")
-        .bind(pending_drop.id)
-        .execute(db_conn)
-        .await?;
-
-    Ok(())
 }
 
 #[derive(sqlx::FromRow)]
