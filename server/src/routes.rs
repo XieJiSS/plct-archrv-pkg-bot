@@ -29,7 +29,7 @@ struct MsgResp {
 }
 
 impl MsgResp {
-    fn new_200_msg<D: ToString>(detail: D) -> HttpResponse {
+    fn ok<D: ToString>(detail: D) -> HttpResponse {
         HttpResponse::Ok().json(Self {
             status: ReqStatus::Ok,
             msg: "Request success".to_string(),
@@ -37,8 +37,8 @@ impl MsgResp {
         })
     }
 
-    /// Create a new Internal Server Error (ise) response
-    fn new_500_resp<M, D>(msg: M, detail: D) -> HttpResponse
+    /// Create a new Internal Server Error response
+    fn internal_server_error<M, D>(msg: M, detail: D) -> HttpResponse
     where
         M: ToString,
         D: ToString,
@@ -50,7 +50,7 @@ impl MsgResp {
         })
     }
 
-    fn new_403_resp<M: ToString>(detail: M) -> HttpResponse {
+    fn forbidden<M: ToString>(detail: M) -> HttpResponse {
         HttpResponse::Forbidden().json(Self {
             status: ReqStatus::Fail,
             msg: "forbidden".to_string(),
@@ -58,7 +58,7 @@ impl MsgResp {
         })
     }
 
-    fn new_400_resp<M: ToString>(detail: M) -> HttpResponse {
+    fn bad_request<M: ToString>(detail: M) -> HttpResponse {
         HttpResponse::BadRequest().json(Self {
             status: ReqStatus::Fail,
             msg: "bad request".to_string(),
@@ -88,12 +88,12 @@ struct PkgJsonResponse {
 pub(super) async fn pkg(data: Data) -> HttpResponse {
     let work_list = sql::get_working_list(&data.db_conn).await;
     if let Err(err) = work_list {
-        return MsgResp::new_500_resp("fail to get working list", err);
+        return MsgResp::internal_server_error("fail to get working list", err);
     }
 
     let mark_list = sql::Mark::fetch_all(&data.db_conn).await;
     if let Err(err) = mark_list {
-        return MsgResp::new_500_resp("fail to get mark list", err);
+        return MsgResp::internal_server_error("fail to get mark list", err);
     }
 
     HttpResponse::Ok().json(PkgJsonResponse {
@@ -120,10 +120,14 @@ async fn notify_assignee(
 ) -> Result<(), actix_web::HttpResponse> {
     let packager = sql::Packager::search(db_conn, sql::FindPackagerBy::Pkgname(pkgname)).await;
     if let Err(err) = &packager {
-        match err.downcast_ref::<sqlx::Error>() {
-            Some(sqlx::Error::RowNotFound) => return Ok(()), // expected
-            Some(&_) | None => return Err(MsgResp::new_500_resp("fail to fetch packager", err)),
+        tracing::error!("{err}");
+        if err.is_expected() {
+            return Ok(());
         }
+        return Err(MsgResp::internal_server_error(
+            "fail to fetch packager",
+            err,
+        ));
     }
 
     let packager = packager.unwrap();
@@ -191,11 +195,11 @@ pub(super) async fn delete(
     data: Data,
 ) -> HttpResponse {
     if q.token != data.token {
-        return MsgResp::new_403_resp("invalid token");
+        return MsgResp::forbidden("invalid token");
     }
 
     if !["ftbfs", "leaf"].contains(&path.status.as_str()) {
-        return MsgResp::new_400_resp(format!("Required 'ftbfs' or 'leaf', get {}", path.status));
+        return MsgResp::bad_request(format!("Required 'ftbfs' or 'leaf', get {}", path.status));
     }
 
     // #1: notify assignee this package is ready
@@ -229,14 +233,14 @@ pub(super) async fn delete(
     });
 
     if let Err(err) = task2.await.unwrap() {
-        return MsgResp::new_500_resp("Error occur when deleting mark", err);
+        return MsgResp::internal_server_error("Error occur when deleting mark", err);
     }
 
     if let Err(err) = task3.await.unwrap() {
-        return MsgResp::new_500_resp("Error occur when deleting relationship", err);
+        return MsgResp::internal_server_error("Error occur when deleting relationship", err);
     }
 
-    MsgResp::new_200_msg("package deleted")
+    MsgResp::ok("package deleted")
 }
 
 // resolve the relation and auto cc
