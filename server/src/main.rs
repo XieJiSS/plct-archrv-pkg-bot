@@ -2,6 +2,7 @@ use actix_web::{App, HttpServer};
 use anyhow::Context;
 use std::env;
 
+mod model;
 mod routes;
 mod sql;
 mod tg;

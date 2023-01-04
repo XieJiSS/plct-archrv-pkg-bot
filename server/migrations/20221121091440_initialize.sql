@@ -19,27 +19,35 @@ CREATE TABLE IF NOT EXISTS assignment (
 );
 
 CREATE TABLE IF NOT EXISTS mark(
-  name      TEXT NOT NULL,
-  marked_by INT,
-  marked_at INT NOT NULL,
-  msg_id    INT NOT NULL,
-  comment   TEXT,
-  for_pkg   INTEGER,
+  id         INTEGER PRIMARY KEY,
+  kind       TEXT NOT NULL,
+  comment    TEXT,
+  msg_id     INT NOT NULL,
+
+  marked_by  INT,
+  marked_at  INT NOT NULL,
+  marked_for INTEGER,
 
   FOREIGN KEY(marked_by) REFERENCES packager(tg_uid),
-  FOREIGN KEY(for_pkg) REFERENCES pkg(id)
+  FOREIGN KEY(marked_for) REFERENCES pkg(id)
 );
 
-CREATE TABLE IF NOT EXISTS pkg_relation(
-  -- outdated_dep, missing_dep...etc
-  relation     TEXT NOT NULL,
-  -- which package require the related package to be ready
-  require      INT NOT NULL,
-  -- if missing_dep, the dep pkg
-  related      INT NOT NULL,
-  created_by   INT NOT NULL,
+CREATE TABLE IF NOT EXISTS outdated_deps(
+  source      INT NOT NULL,
+  target      INT NOT NULL,
+  mark_id     INT NOT NULL,
 
-  FOREIGN KEY(require) REFERENCES pkg(id),
-  FOREIGN KEY(related) REFERENCES pkg(id),
-  FOREIGN KEY(created_by) REFERENCES packager(tg_uid)
+  FOREIGN KEY(source) REFERENCES pkg(id),
+  FOREIGN KEY(target) REFERENCES pkg(id),
+  FOREIGN KEY(mark_id) REFERENCES mark(id)
+);
+
+CREATE TABLE IF NOT EXISTS missing_deps(
+  source      INT NOT NULL,
+  target      INT NOT NULL,
+  mark_id     INT NOT NULL,
+
+  FOREIGN KEY(source) REFERENCES pkg(id),
+  FOREIGN KEY(target) REFERENCES pkg(id),
+  FOREIGN KEY(mark_id) REFERENCES mark(id)
 );
