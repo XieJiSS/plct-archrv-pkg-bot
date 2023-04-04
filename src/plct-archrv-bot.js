@@ -478,12 +478,14 @@ async function replyAndDeleteAfter(chatId, msgId, text, ms, options = {}) {
 
 //  --------- TelegramBot related functions end ----------  //
 
-
-onText(/^\/add\s+(\S+)$/, async (msg, match) => {
-  const chatId = msg.chat.id;
+// 认领包
+/**
+ * @param {number} chatId
+ * @param {TelegramBot.Message} msg
+ * @param {string} newPackageName
+ */
+async function addPackage(chatId, msg, newPackageName) {
   const msgId = msg.message_id;
-  const newPackageName = match[1];
-
   if(newPackageName !== newPackageName.toLowerCase()) {
     await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
       parse_mode: "MarkdownV2",
@@ -533,6 +535,25 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
     await sendMessage(process.env["PLCT_CHAT_ID"], `${newPackageName} 已被认领。`);
     await sendMessage(chatId, "deprecated: 不建议在 PLCT 群以外的地方认领包");
   }
+}
+
+onText(/^\/add\s+(\S+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const newPackageName = match[1];
+
+  await addPackage(chatId, msg, newPackageName);
+});
+
+onText(/^\/give\s+(\S+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const newPackageName = match[1];
+
+  if(!msg.reply_to_message) {
+    await replyMessage(chatId, msg.message_id, toSafeMd(`在使用本命令时，请回复要接受这个包的用户的任意消息。`));
+    return;
+  }
+
+  await addPackage(chatId, msg.reply_to_message, newPackageName);
 });
 
 onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
