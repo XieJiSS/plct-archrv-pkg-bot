@@ -544,6 +544,32 @@ onText(/^\/add\s+(\S+)$/, async (msg, match) => {
   await addPackage(chatId, msg, newPackageName);
 });
 
+onText(/^\/rob\s+(\S+)$/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const newPackageName = match[1];
+
+  verb("user", msg.from.id, "is trying to rob", newPackageName);
+
+  /**
+   * @param {boolean} success
+   * @param {string} [reason]
+   */
+  async function mergeCallback(success, reason) {
+    if(success) {
+      await replyMessage(chatId, msg.message_id, toSafeMd(`记录释放成功`));
+      await addPackage(chatId, msg, newPackageName);
+    } else {
+      await replyMessage(chatId, msg.message_id, toSafeMd(reason));
+    }
+  }
+
+  if (packageStatus.filter((user) => user.packages.some((existingPkg) => existingPkg.name === newPackageName)).length) {
+    _merge(newPackageName, findUserIdByPackage(newPackageName), mergeCallback);
+  } else {
+    await addPackage(chatId, msg, newPackageName);
+  }
+});
+
 onText(/^\/give\s+(\S+)$/, async (msg, match) => {
   const chatId = msg.chat.id;
   const newPackageName = match[1];
@@ -553,7 +579,29 @@ onText(/^\/give\s+(\S+)$/, async (msg, match) => {
     return;
   }
 
-  await addPackage(chatId, msg.reply_to_message, newPackageName);
+  /**
+   * @param {boolean} success
+   * @param {string} [reason]
+   */
+  async function mergeCallback(success, reason) {
+    if(success) {
+      await replyMessage(chatId, msg.message_id, toSafeMd(`记录释放成功`));
+      await addPackage(chatId, msg.reply_to_message, newPackageName);
+    } else {
+      await replyMessage(chatId, msg.message_id, toSafeMd(reason));
+    }
+  }
+
+  if (packageStatus.filter((user) => user.packages.some((existingPkg) => existingPkg.name === newPackageName)).length) {
+    if (findUserIdByPackage(newPackageName) === msg.from.id) {
+      _merge(newPackageName, msg.from.id, mergeCallback);
+    } else {
+      await replyMessage(chatId, msg.from.id, toSafeMd(`认领失败，该包已被其他人认领，此时你无法通过 /give 转交该包`));
+      return;
+    }
+  } else {
+    await addPackage(chatId, msg.reply_to_message, newPackageName);
+  }
 });
 
 onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
