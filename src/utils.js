@@ -291,9 +291,9 @@ function _updatePackageStatusSchema(oldPackageStatus) {
       username: user.username,
       packages: user.packages.map(pkg => {
         if(typeof pkg !== "string") {
-          throw new Error("Unexpected package type: " + JSON.stringify(pkg));
+          console.error("Unexpected package type: " + JSON.stringify(pkg));
         }
-        return { name: pkg, lastActive: Date.now() };
+        return { name: pkg.toString(), lastActive: Date.now() };
       }),
     };
     return ret;
