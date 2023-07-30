@@ -277,6 +277,7 @@ function _updatePackageStatusSchema(oldPackageStatus) {
     // @ts-ignore
     return oldPackageStatus.slice();
   }
+  console.error("invalid oldPackageStatus", oldPackageStatus);
   return oldPackageStatus.map(user => {
     /**
      * @type {{
