@@ -453,13 +453,13 @@ function editMessage(chatId, msgId, newText) {
 
 /**
  * @param {string | number} chatId
- * @param {string | number} msgId
+ * @param {number} msgId
  * @param {number} ms
  */
 async function deleteAfter(chatId, msgId, ms) {
   await sleep(ms);
   verb("Deleting message", msgId, "of chat", chatId);
-  bot.deleteMessage(chatId, String(msgId)).catch(() => {
+  bot.deleteMessage(chatId, msgId).catch(() => {
     verb("Failed to delete message", msgId, "of chat", chatId);
   });
 }
