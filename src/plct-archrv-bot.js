@@ -10,6 +10,7 @@ require("dotenv").config({
 
 const TelegramBot = require("node-telegram-bot-api");
 const { inspect } = require("util");
+const path = require("node:path");
 const crypto = require("crypto");
 const http = require("http");
 const lock = require("lockfile");
@@ -661,6 +662,38 @@ function _merge(mergedPackageName, userId, callback) {
 
   callback(false, `你还没有认领任何 package`);
 }
+  
+onText(/^\/_html\s+([\S\s\n]+)$/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const html = match[1];
+  // use the unwrapped bot.sendMessage since we'd like to catch
+  // potential errors and handle them manually
+  bot.sendMessage(chatId, html, { parse_mode: "HTML", disable_notification: true }).catch((err) => {
+    let safeErr = String(err);
+
+    if(path.resolve(__dirname) !== "/") {
+      while (safeErr.includes(path.resolve(__dirname))) {
+        safeErr = safeErr.replace(path.resolve(__dirname), ".");
+      }
+    } else {
+      return;
+    }
+
+    if(process.env.USER && process.env.USER !== "~") {
+      while (safeErr.includes(process.env.USER)) {
+        safeErr = safeErr.replace(process.env.USER, "~");
+      }
+    } else {
+      return;
+    }
+
+    sendMessage(
+      chatId,
+      `<pre><code>${safeErr}</code></pre>"`,
+      { parse_mode: "HTML" }
+    );
+  });
+});
 
 const MARK_REGEXP = /^\/mark\s+(\S+)\s+(\S+)(\s+[\S\s]+)?$/;
 
