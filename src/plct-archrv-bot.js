@@ -18,6 +18,8 @@ const lock = require("lockfile");
 console.log("[INFO]", "PID", process.pid);  // eslint-disable-line
 const verb = require("./_verbose");
 
+const { i18n } = require("./i18n");
+
 try {
   const lockPromise = new Promise((res, rej) => {
     lock.lock("plct.lock", function (err) {
@@ -497,9 +499,9 @@ async function addPackage(chatId, msg, newPackageName) {
 
   if(packageStatus.filter(user => user.packages.some(existingPkg => existingPkg.name === newPackageName)).length) {
     if(findUserIdByPackage(newPackageName) === msg.from.id) {
-      await replyMessage(chatId, msgId, toSafeMd(`无需重复认领`));
+      await replyMessage(chatId, msgId, toSafeMd(i18n`无需重复认领`));
     } else {
-      await replyMessage(chatId, msgId, toSafeMd(`认领失败，这个 package 已被其他人认领`));
+      await replyMessage(chatId, msgId, toSafeMd(i18n`认领失败，这个 package 已被其他人认领`));
     }
     return;
   }
@@ -524,17 +526,17 @@ async function addPackage(chatId, msg, newPackageName) {
   const packageMark = packageMarks.filter(pkg => pkg.name === newPackageName)[0];
   if(packageMark && packageMark.marks.filter(mark => mark.name !== "failing").length) {
     const marks = packageMark.marks;
-    let markStatusStr = toSafeMd(`认领成功，但请注意该 package 有特殊状态：\n`);
+    let markStatusStr = toSafeMd(i18n`认领成功，但请注意该 package 有特殊状态：\n`);
     markStatusStr += marksToStringArr(marks).join("\n");
-    markStatusStr += toSafeMd(`\n\n可以用 more 命令查看完整列表`);
+    markStatusStr += toSafeMd(i18n`\n\n可以用 more 命令查看完整列表`);
     await replyMessage(chatId, msgId, markStatusStr, { parse_mode: "MarkdownV2" });
   } else {
-    await replyMessage(chatId, msgId, toSafeMd(`认领成功`));
+    await replyMessage(chatId, msgId, toSafeMd(i18n`认领成功`));
   }
 
   if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
-    await sendMessage(process.env["PLCT_CHAT_ID"], `${newPackageName} 已被认领。`);
-    await sendMessage(chatId, "deprecated: 不建议在 PLCT 群以外的地方认领包");
+    await sendMessage(process.env["PLCT_CHAT_ID"], i18n`${newPackageName} 已被认领。`);
+    await sendMessage(chatId, i18n`deprecated: 不建议在 PLCT 群以外的地方认领包`);
   }
 }
 
@@ -557,7 +559,7 @@ onText(/^\/rob\s+(\S+)$/, async (msg, match) => {
    */
   async function mergeCallback(success, reason) {
     if(success) {
-      await replyMessage(chatId, msg.message_id, toSafeMd(`记录释放成功`));
+      await replyMessage(chatId, msg.message_id, toSafeMd(i18n`记录释放成功`));
       await addPackage(chatId, msg, newPackageName);
     } else {
       await replyMessage(chatId, msg.message_id, toSafeMd(reason));
@@ -576,7 +578,7 @@ onText(/^\/give\s+(\S+)$/, async (msg, match) => {
   const newPackageName = match[1];
 
   if(!msg.reply_to_message) {
-    await replyMessage(chatId, msg.message_id, toSafeMd(`在使用本命令时，请回复要接受这个包的用户的任意消息。`));
+    await replyMessage(chatId, msg.message_id, toSafeMd(i18n`在使用本命令时，请回复要接受这个包的用户的任意消息。`));
     return;
   }
 
@@ -586,7 +588,7 @@ onText(/^\/give\s+(\S+)$/, async (msg, match) => {
    */
   async function mergeCallback(success, reason) {
     if(success) {
-      await replyMessage(chatId, msg.message_id, toSafeMd(`记录释放成功`));
+      await replyMessage(chatId, msg.message_id, toSafeMd(i18n`记录释放成功`));
       await addPackage(chatId, msg.reply_to_message, newPackageName);
     } else {
       await replyMessage(chatId, msg.message_id, toSafeMd(reason));
@@ -597,7 +599,7 @@ onText(/^\/give\s+(\S+)$/, async (msg, match) => {
     if (findUserIdByPackage(newPackageName) === msg.from.id) {
       _merge(newPackageName, msg.from.id, mergeCallback);
     } else {
-      await replyMessage(chatId, msg.from.id, toSafeMd(`认领失败，该包已被其他人认领，此时你无法通过 /give 转交该包`));
+      await replyMessage(chatId, msg.from.id, toSafeMd(i18n`认领失败，该包已被其他人认领，此时你无法通过 /give 转交该包`));
       return;
     }
   } else {
@@ -626,7 +628,7 @@ onText(/^\/(merge|drop)\s+(\S+)$/, async (msg, match) => {
    */
   async function mergeCallback(success, reason) {
     if(success) {
-      return await replyMessage(chatId, msgId, toSafeMd(`记录释放成功`));
+      return await replyMessage(chatId, msgId, toSafeMd(i18n`记录释放成功`));
     } else {
       return await replyMessage(chatId, msgId, toSafeMd(reason));
     }
@@ -644,14 +646,14 @@ function _merge(mergedPackageName, userId, callback) {
   verb("trying to merge", mergedPackageName);
 
   if(!packageStatus.filter(user => user.packages.some(existingPkg => existingPkg.name === mergedPackageName)).length) {
-    callback(false, `这个 package 不在认领记录中`);
+    callback(false, i18n`这个 package 不在认领记录中`);
     return;
   }
 
   if(packageStatus.some(user => user.userid === userId)) {
     const targetPackage = packageStatus.find(user => user.userid === userId).packages.find(pkg => pkg.name === mergedPackageName);
     if(!targetPackage) {
-      callback(false, `这个 package 不在你的认领记录中。请联系该包的认领人`);
+      callback(false, i18n`这个 package 不在你的认领记录中。请联系该包的认领人`);
       return;
     }
     //@ts-ignore
@@ -660,7 +662,7 @@ function _merge(mergedPackageName, userId, callback) {
     return;
   }
 
-  callback(false, `你还没有认领任何 package`);
+  callback(false, i18n`你还没有认领任何 package`);
 }
   
 onText(/^\/_html\s+([\S\s\n]+)$/, (msg, match) => {
@@ -729,7 +731,7 @@ onText(MARK_REGEXP, async (msg, match) => {
 
   if(comment === "" && markConfig.requireComment) {
     verb(`mark ${mark} requires comment.`);
-    await sendMessage(chatId, toSafeMd(`标记为 ${mark} 需要提供额外说明。`), {
+    await sendMessage(chatId, toSafeMd(i18n`标记为 ${mark} 需要提供额外说明。`), {
       parse_mode: "MarkdownV2",
     });
     return;
@@ -737,7 +739,7 @@ onText(MARK_REGEXP, async (msg, match) => {
 
   if(!markConfig.allowUserModification.mark) {
     verb(`should not try to mark #${mark} by hand`);
-    await sendMessage(chatId, toSafeMd(`标记 ${mark} 不允许手动添加，请考虑使用其它的 mark 替代`), {
+    await sendMessage(chatId, toSafeMd(i18n`标记 ${mark} 不允许手动添加，请考虑使用其它的 mark 替代`), {
       parse_mode: "MarkdownV2",
     });
     return;
@@ -768,7 +770,7 @@ onText(MARK_REGEXP, async (msg, match) => {
     if(shouldMark.length > 0) {
       verb(`triggered by this mark: should also mark`, shouldMark);
       const prefix = wrapCode("(auto-mark)");
-      await sendMessage(chatId, prefix + toSafeMd(` ${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
+      await sendMessage(chatId, prefix + toSafeMd(i18n` ${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
         parse_mode: "MarkdownV2",
       });
       const comments = [];
@@ -782,7 +784,7 @@ onText(MARK_REGEXP, async (msg, match) => {
     if(shouldUnmark.length > 0) {
       verb(`triggered by this mark: should also unmark`, shouldUnmark);
       const prefix = wrapCode("(auto-unmark)");
-      await sendMessage(chatId, prefix + toSafeMd(` ${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
+      await sendMessage(chatId, prefix + toSafeMd(i18n` ${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
         parse_mode: "MarkdownV2",
       });
       // we don't care whether triggered unmarks are updated successfully or not,
@@ -797,12 +799,12 @@ onText(MARK_REGEXP, async (msg, match) => {
    */
   function markCallback(success, reason) {
     if(success) {
-      replyMessage(chatId, msgId, toSafeMd(`状态更新成功`));
+      replyMessage(chatId, msgId, toSafeMd(i18n`状态更新成功`));
       if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
-        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${pkg} 已被标记为 ${mark}：${comment || "无注释"}`), {
+        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(i18n`${pkg} 已被标记为 ${mark}：${comment || i18n`无注释`}`), {
           parse_mode: "MarkdownV2"
         });
-        sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`), {
+        sendMessage(chatId, toSafeMd(i18n`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`), {
           parse_mode: "MarkdownV2"
         });
       }
@@ -932,20 +934,20 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
     const succ = await _unmarkMultiple(pkg, targetMarks, (succ, reason) => {
       if(!succ) {
         verb("unmark all: unmark failed because of", reason);
-        sendMessage(chatId, toSafeMd(`删除标记失败：${reason}`), {
+        sendMessage(chatId, toSafeMd(i18n`删除标记失败：${reason}`), {
           parse_mode: "MarkdownV2"
         });
       }
     });
     if(succ) {
-      let respText = toSafeMd("已成功删除该包的 ");
+      let respText = toSafeMd(i18n`已成功删除该包的 `);
       respText += targetMarks.map(mark => wrapCode(mark)).join(" ");
-      respText += toSafeMd(" 标记");
+      respText += toSafeMd(i18n` 标记`);
       sendMessage(chatId, respText, {
         parse_mode: "MarkdownV2"
       });
     } else {
-      sendMessage(chatId, toSafeMd(`未能删除全部标记，请重试`), {
+      sendMessage(chatId, toSafeMd(i18n`未能删除全部标记，请重试`), {
         parse_mode: "MarkdownV2"
       });
     }
@@ -957,12 +959,12 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
   const markConfig = getMarkConfig(mark);
 
   if(!markConfig) {
-    return await sendMessage(chatId, `未知的标记：${mark}。`);
+    return await sendMessage(chatId, i18n`未知的标记：${mark}。`);
   }
 
   if(!markConfig.allowUserModification.unmark && msg.from.id !== ADMIN_ID) {
     verb(`should not try to unmark #${mark} by hand`);
-    await sendMessage(chatId, toSafeMd(`标记 ${mark} 被配置为不允许手动清除`), {
+    await sendMessage(chatId, toSafeMd(i18n`标记 ${mark} 被配置为不允许手动清除`), {
       parse_mode: "MarkdownV2",
     });
     return;
@@ -987,7 +989,7 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
     if(shouldMark.length > 0) {
       verb(`triggered by this mark: should also mark`, shouldMark);
       const prefix = wrapCode("(auto-mark)");
-      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
+      await sendMessage(chatId, prefix + toSafeMd(i18n`${pkg} 将被额外添加这些标记：${shouldMark.join(" ")}`), {
         parse_mode: "MarkdownV2",
       });
       const comments = [];
@@ -1001,7 +1003,7 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
     if(shouldUnmark.length > 0) {
       verb(`triggered by this mark: should also unmark`, shouldUnmark);
       const prefix = wrapCode("(auto-unmark)");
-      await sendMessage(chatId, prefix + toSafeMd(`${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
+      await sendMessage(chatId, prefix + toSafeMd(i18n`${pkg} 将被清除这些标记：${shouldUnmark.join(" ")}`), {
         parse_mode: "MarkdownV2",
       });
       // we don't care whether triggered unmarks are updated successfully or not,
@@ -1016,14 +1018,14 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
    */
   async function unmarkCallback(success, reason) {
     if(success) {
-      await replyMessage(chatId, msgId, toSafeMd(`状态更新成功`), {
+      await replyMessage(chatId, msgId, toSafeMd(i18n`状态更新成功`), {
         parse_mode: "MarkdownV2"
       });
       if(String(chatId) !== process.env["PLCT_CHAT_ID"]) {
-        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(`${pkg} 不再被标记为 ${mark}`), {
+        sendMessage(process.env["PLCT_CHAT_ID"], toSafeMd(i18n`${pkg} 不再被标记为 ${mark}`), {
           parse_mode: "MarkdownV2"
         });
-        sendMessage(chatId, toSafeMd(`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`), {
+        sendMessage(chatId, toSafeMd(i18n`deprecated: 不建议在 PLCT 群以外的地方更新包的状态`), {
           parse_mode: "MarkdownV2"
         });
       }
@@ -1069,16 +1071,16 @@ async function _unmark(pkg, mark, callback) {
       try {
         await storePackageMarks();
       } catch {
-        callback(false, "未能写入数据库");
+        callback(false, i18n`未能写入数据库`);
         return false;
       }
       callback(true, mark);
       return true;
     }
-    callback(false, "该 package 目前未被设定为此状态");
+    callback(false, i18n`该 package 目前未被设定为此状态`);
     return false;
   }
-  callback(false, "表中没有该 package");
+  callback(false, i18n`表中没有该 package`);
   return false;
 }
 
@@ -1086,7 +1088,7 @@ async function _unmark(pkg, mark, callback) {
  * @param {number} chatId
  */
 async function showMarkHelp(chatId) {
-  await sendMessage(chatId, toSafeMd(`/mark 用法：\n/mark pkg status [comment]\n\n可用的 status 包括 ${
+  await sendMessage(chatId, toSafeMd(i18n`/mark 用法：\n/mark pkg status [comment]\n\n可用的 status 包括 ${
     Object.keys(localUtils.MARK2STR).join(", ")
   }`), { parse_mode: "MarkdownV2" });
 }
@@ -1107,7 +1109,7 @@ onText(/^\/status@?/, async (msg) => {
   }
 
   statusStr = statusStr || toSafeMd("(empty)");
-  statusStr += toSafeMd("\n可以通过 add，merge 和 drop 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。");
+  statusStr += toSafeMd(i18n`\n可以通过 add，merge 和 drop 命令来维护此列表；\n使用 more 命令查看需要特殊处理的 package。`);
 
   await replyMessage(chatId, msgId, statusStr, { parse_mode: "MarkdownV2" });
 });
@@ -1129,7 +1131,7 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
 
   if(packageStatus.some(user => user.packages.map(pkg => pkg.name).includes(pkgname))) {
     const user = packageStatus.find(user => user.packages.map(pkg => pkg.name).includes(pkgname));
-    statusStr += toSafeMd(`该包已被 ${ getAlias(user.userid) } 认领。\n`);
+    statusStr += toSafeMd(i18n`该包已被 ${ getAlias(user.userid) } 认领。\n`);
   }
 
   for(const packageMark of packageMarks) {
@@ -1137,7 +1139,7 @@ onText(/^\/more(?:@[\S]+?)?\s+([\S]+)$/, async (msg, match) => {
     statusStr += marksToStringArr(packageMark.marks).join(" ");
   }
 
-  await replyMessage(chatId, msgId, statusStr || "该包目前不具有任何标记", { parse_mode: "MarkdownV2" });
+  await replyMessage(chatId, msgId, statusStr || i18n`该包目前不具有任何标记`, { parse_mode: "MarkdownV2" });
 });
 
 onText(/^\/more(?:@[\S]+?)?$/, async (msg) => {
@@ -1150,7 +1152,7 @@ onText(/^\/popmsg(?:@[\S]+?)?$/, (msg) => {
   const chatId = msg.chat.id;
   const modified = markChatThrottledMsgAsSendable(chatId);
   if(!modified) {
-    sendMessage(chatId, toSafeMd("当前群的消息队列中没有 throttled 状态的消息"), {
+    sendMessage(chatId, toSafeMd(i18n`当前群的消息队列中没有 throttled 状态的消息`), {
       parse_mode: "MarkdownV2"
     });
   }
@@ -1259,7 +1261,7 @@ async function routeDeleteHandler(req, res) {
     const alias = getAlias(userId);
     const link = getMentionLink(userId, null, alias);
     const msgTypeStr = wrapCode("(auto-merge)");
-    sendMessage(CHAT_ID, msgTypeStr + " ping " + link + toSafeMd(`: ${pkgname} 已出包`), {
+    sendMessage(CHAT_ID, msgTypeStr + " ping " + link + toSafeMd(i18n`: ${pkgname} 已出包`), {
       parse_mode: "MarkdownV2",
     }, true);
 
@@ -1282,7 +1284,7 @@ async function routeDeleteHandler(req, res) {
     const mark = reason;
     const msgTypeStr = wrapCode("(auto-unmark)");
     // 需要这个部分在后面的 Ping + defer msg 之前输出，所以这里并不 defer
-    sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 已出包，不再被标记为 ${mark}`), {
+    sendMessage(CHAT_ID, msgTypeStr + toSafeMd(i18n` ${pkgname} 已出包，不再被标记为 ${mark}`), {
       parse_mode: "MarkdownV2",
     }, true);
   });
@@ -1318,7 +1320,7 @@ async function routeDeleteHandler(req, res) {
           const msgTypeStr = wrapCode("(auto-unmark)");
           // defer 输出
           defer.add(deferKey, () => {
-            sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
+            sendMessage(CHAT_ID, msgTypeStr + toSafeMd(i18n` ${pkg.name} 因 ${pkgname} 出包，不再被标记为 ${mark.name}`), {
               parse_mode: "MarkdownV2",
             }, true);
           });
@@ -1336,7 +1338,7 @@ async function routeDeleteHandler(req, res) {
           const msgTypeStr = wrapCode("(auto-mark)");
           // defer 输出
           defer.add(deferKey, () => {
-            sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` [${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
+            sendMessage(CHAT_ID, msgTypeStr + toSafeMd(i18n` [${pkgname}] 已从 ${pkg.name} 的 ${mark.name} 状态内移除。`), {
               parse_mode: "MarkdownV2",
             }, true);
           });
@@ -1416,7 +1418,7 @@ async function routeAddHandler(req, res) {
     const failingLogLink = getErrorLogDirLinkMd(pkgname, "failing");
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, _safemd`${msgTypeStr} ${toSafeMd(pkgname)} 已被自动标记为 ${failingLogLink}`, {
+      sendMessage(CHAT_ID, toSafeMd(i18n`${msgTypeStr} ${toSafeMd(pkgname)} 已被自动标记为 ${failingLogLink}`), {
         parse_mode: "MarkdownV2",
       }, true);
     });
@@ -1429,7 +1431,7 @@ async function routeAddHandler(req, res) {
     const msgTypeStr = wrapCode("(auto-unmark)")
     // defer 输出
     defer.add(deferKey, () => {
-      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(` ${pkgname} 不再被标记为 ${mark}`), {
+      sendMessage(CHAT_ID, msgTypeStr + toSafeMd(i18n` ${pkgname} 不再被标记为 ${mark}`), {
         parse_mode: "MarkdownV2",
       }, true);
     });
