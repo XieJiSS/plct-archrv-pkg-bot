@@ -940,9 +940,9 @@ onText(/^\/unmark\s+(\S+)\s+(\S+)/, async (msg, match) => {
       }
     });
     if(succ) {
-      let respText = toSafeMd(i18n`已成功删除该包的 `);
-      respText += targetMarks.map(mark => wrapCode(mark)).join(" ");
-      respText += toSafeMd(i18n` 标记`);
+      let respText = toSafeMd(
+        i18n`已成功删除该包的 ${targetMarks.map(mark => wrapCode(mark)).join(" ")} 标记`
+      );
       sendMessage(chatId, respText, {
         parse_mode: "MarkdownV2"
       });

@@ -32,7 +32,14 @@ function* interleave() {
 function i18n(strings, ...args) {
   // obtain the translation key
   let placeholders = [...Array(strings.length).keys()].slice(1).map(n => `{${n}}`)
-  let key = [...interleave(strings, placeholders)].join('')
+  let rawKey = [...interleave(strings, placeholders)].join('')
+  let leadingWhitespace = rawKey.match(/^\s+/)
+  let trailingWhitespace = rawKey.match(/\s+$/)
+  if (leadingWhitespace.index === trailingWhitespace.index) {
+    // the key contains only whitespace
+    return rawKey
+  }
+  let key = rawKey.trim()
   // obtain the locale
   let locale = defaultLocale
   // obtain the translation
@@ -46,7 +53,7 @@ function i18n(strings, ...args) {
   for (let i = 0; i < args.length; i++) {
     translated = translated.replace(`{${i + 1}}`, args[i].toString())
   }
-  return translated
+  return leadingWhitespace[0] + translated + trailingWhitespace[0]
 }
 
 module.exports = {
