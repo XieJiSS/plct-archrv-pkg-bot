@@ -2,12 +2,15 @@
 // @ts-check
 "use strict";
 
-require("dotenv").config({
+import { config } from "dotenv";
+config({
   path: "./config/.env",
 });
 
 import TelegramBot from "node-telegram-bot-api";
+
 import { inspect } from "util";
+import { fileURLToPath } from "url";
 import path from "node:path";
 import crypto from "crypto";
 import http from "http";
@@ -17,6 +20,9 @@ console.log("[INFO]", "PID", process.pid); // eslint-disable-line
 import verb from "./_verbose";
 
 import { i18n } from "./i18n";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 try {
   const lockPromise = new Promise<void>((res, rej) => {

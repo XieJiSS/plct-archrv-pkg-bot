@@ -2,7 +2,7 @@
 
 import { format } from "util";
 
-const EMOJI_REGEX = require("./_emoji").emojiRegex;
+import { emojiRegex as EMOJI_REGEX } from "./_emoji";
 const CJK_REGEX =
   /[\u{2E80}-\u{2EFF}\u{2F00}-\u{2FDF}\u{2FF0}-\u{2FFF}\u{3000}-\u{303F}\u{31C0}-\u{31EF}\u{3200}-\u{32FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{20000}-\u{2A6DF}]/u;
 const FULLWIDTH_REGEXS = [EMOJI_REGEX, CJK_REGEX];

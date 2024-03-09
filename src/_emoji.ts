@@ -1,5 +1,9 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const rawEmojiData = fs.readFileSync(path.join(__dirname, "_emoji.txt")).toString("utf8").trim();
 
@@ -67,3 +71,5 @@ function emojiStrip(text: string): string {
 emojiStrip.emojiRegex = regex;
 
 export default emojiStrip;
+
+export const emojiRegex = regex;
