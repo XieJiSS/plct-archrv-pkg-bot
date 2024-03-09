@@ -931,6 +931,8 @@ onText(MARK_MULTI_REGEXP, async (msg, match) => {
 
   verb("trying to mark multiple packages", pkgList, "as", comment);
 
+  const handledPkgs = new Set();
+
   for (const pkg of pkgList) {
     if (pkg !== pkg.toLowerCase()) {
       await replyMessage(chatId, msgId, toSafeMd(`warning: pkgname not in lowercase form.`), {
@@ -938,17 +940,22 @@ onText(MARK_MULTI_REGEXP, async (msg, match) => {
       });
     }
 
+    if (handledPkgs.has(pkg)) {
+      continue;
+    }
+
     await markCommandHandler(pkg, mark, comment, chatId, msgId, userId, msg);
+    handledPkgs.add(pkg);
   }
 });
 
-onText(/^\/mark/, async (msg) => {
+onText(/^\/mark$/, async (msg) => {
   const chatId = msg.chat.id;
   if (MARK_REGEXP.test(msg.text)) return;
   return await showMarkHelp(chatId);
 });
 
-onText(/^\markall/, async (msg) => {
+onText(/^\markall$/, async (msg) => {
   const chatId = msg.chat.id;
   if (MARK_MULTI_REGEXP.test(msg.text)) return;
   return await showMarkAllHelp(chatId);
