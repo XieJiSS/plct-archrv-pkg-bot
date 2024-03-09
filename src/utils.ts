@@ -1,12 +1,6 @@
-// @ts-check
-"use strict";
-
 /**
  * TODO:
 
-important mark
-nocheck mark
-fix db (& add schema version)
 change status & marks db to use id instead of name, and retrieve name dynamically
  */
 
@@ -14,8 +8,9 @@ import assert from "assert";
 import crypto from "crypto";
 import _equal from "deep-equal";
 import fs from "fs";
-import { readFile, unlink, writeFile } from "fs/promises";
-
+import { unlink, writeFile } from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import verb from "./_verbose";
 
 import {
@@ -31,18 +26,22 @@ import {
   StrippedPackageMark,
 } from "./types";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const BASE_LOG_DIR = process.env["PLCT_BASE_LOG_DIR"] || "";
 
 let packageStatus: PackageStatus[] = [];
+await loadPackageStatus();
 
 let _packageMarksForInit: PackageMark[];
-
 await loadPackageMarks();
-
 // In order to keep refs in plct-archrv-bot.js, this variable should never be assigned again.
+// Also, this need to be done immediately in this tick, so that we can write back in next tick
 const packageMarks = _packageMarksForInit;
 
 const aliasMap: Record<string, string> = {};
+await loadAlias();
 
 const MARK_CONFIG: Record<string, MarkConfig> = {
   unknown: {
@@ -204,11 +203,9 @@ function storePackageMarksSync() {
 
 async function loadPackageStatus() {
   verb(loadPackageStatus);
-  // packageStatus = _updatePackageStatusSchema(require("../db/packageStatus.json"));
   packageStatus = _updatePackageStatusSchema((await import("../db/packageStatus.json")).default);
   storePackageStatus();
 }
-await loadPackageStatus();
 
 function _updatePackageStatusSchema(oldPackageStatus: OldPackageStatus[]): PackageStatus[] {
   if (oldPackageStatus.length === 0) {
@@ -258,7 +255,10 @@ async function loadPackageMarks() {
   }
 
   _packageMarksForInit = _updatePackageMarkSchema((await import("../db/packageMarks.json")).default);
-  storePackageMarksSync();
+  process.nextTick(() => {
+    // wait for `const packageMarks = _packageMarksForInit;`
+    storePackageMarksSync();
+  });
 }
 
 function _updatePackageMarkSchema(oldPackageMarks: OldPackageMark[]) {
@@ -289,8 +289,6 @@ async function loadAlias() {
     }
   }
 }
-
-await loadAlias();
 
 function getMarkConfig(markName: string) {
   if (!MARK_CONFIG.hasOwnProperty(markName)) {
