@@ -2,7 +2,8 @@
   "name": "plct-tg-bot",
   "version": "1.0.0",
   "description": "",
-  "main": "src/plct-archrv-bot.js",
+  "type": "module",
+  "main": "src/plct-archrv-bot.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -14,7 +15,8 @@
     "deep-equal": "^2.0.5",
     "dotenv": "^9.0.2",
     "lockfile": "^1.0.4",
-    "node-telegram-bot-api": "^0.61.0"
+    "node-telegram-bot-api": "^0.61.0",
+    "tsx": "^4.7.1"
   },
   "devDependencies": {
     "@types/async-exit-hook": "^2.0.0",

@@ -1,2 +1,3 @@
 # You may change to use pm2
-nohup node ./src/plct-archrv-bot.js --verb 1>>./log.log 2>&1 &
+cd "$(dirname "$0")"
+nohup yarn tsx ./src/plct-archrv-bot.ts --verb 1>>./log.log 2>&1 &

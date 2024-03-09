@@ -1,9 +1,10 @@
 //@ts-check
 
-const { format } = require("util");
+import { format } from "util";
 
 const EMOJI_REGEX = require("./_emoji").emojiRegex;
-const CJK_REGEX = /[\u{2E80}-\u{2EFF}\u{2F00}-\u{2FDF}\u{2FF0}-\u{2FFF}\u{3000}-\u{303F}\u{31C0}-\u{31EF}\u{3200}-\u{32FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{20000}-\u{2A6DF}]/u;
+const CJK_REGEX =
+  /[\u{2E80}-\u{2EFF}\u{2F00}-\u{2FDF}\u{2FF0}-\u{2FFF}\u{3000}-\u{303F}\u{31C0}-\u{31EF}\u{3200}-\u{32FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{20000}-\u{2A6DF}]/u;
 const FULLWIDTH_REGEXS = [EMOJI_REGEX, CJK_REGEX];
 const SEPARATOR = "│";
 
@@ -11,12 +12,12 @@ const SEPARATOR = "│";
  * @param {string} str
  * @param {RegExp[]} regexs
  */
-function matchRegexCharsCount(str, regexs) {
+function matchRegexCharsCount(str: string, regexs: RegExp[]) {
   let counter = 0;
-  for(let i = 0; i < str.length; i++) {
-    for(let j = 0; j < regexs.length; j++) {
+  for (let i = 0; i < str.length; i++) {
+    for (let j = 0; j < regexs.length; j++) {
       const regex = regexs[j];
-      if(regex.test(str[i])) {
+      if (regex.test(str[i])) {
         counter++;
       }
     }
@@ -26,11 +27,11 @@ function matchRegexCharsCount(str, regexs) {
 
 /**
  * Formats certain type of values for more readability.
- * @param  {any}  value         Value to format.
+ * @param  {any} value Value to format.
  * @param  {Boolean} isHeaderValue Is this a value in the table header.
- * @return {string}                Formatted value.
+ * @return {string} Formatted value.
  */
-function getFormattedString(value, isHeaderValue) {
+function getFormattedString(value: any, isHeaderValue: boolean): string {
   // console.log(value);
   if (isHeaderValue) {
   } else if (typeof value === "string") {
@@ -48,13 +49,13 @@ function getFormattedString(value, isHeaderValue) {
 /**
  * @param {string[][]} rows
  */
-function printRows(rows) {
+function printRows(rows: string[][]) {
   let result = "";
 
   /**
    * @param {string} str
    */
-  function consoleLogHook(str) {
+  function consoleLogHook(str: string) {
     result += str + "\n";
   }
 
@@ -75,7 +76,7 @@ function printRows(rows) {
     }
     // Give some more padding to biggest string.
     maxLengthForColumn += 4;
-    if(j === 0) {
+    if (j === 0) {
       maxLengthOfFirstColumn = maxLengthForColumn;
     }
     tableWidth += maxLengthForColumn;
@@ -114,12 +115,12 @@ function printRows(rows) {
 }
 
 /**
- * @param {any} data 
+ * @param {any} data
  */
-function printTable(data) {
+function printTable(data: any) {
   if (data === null) {
     return "null";
-  } else if(data === void 0) {
+  } else if (data === void 0) {
     return "undefined";
   }
 
@@ -128,14 +129,14 @@ function printTable(data) {
   /**
    * @param {string} str
    */
-  function consoleLogHook(str) {
+  function consoleLogHook(str: string) {
     result += str + "\n";
   }
 
   /**
    * @type {string[][]}
    */
-  const rows = [];
+  const rows: string[][] = [];
 
   // Simply consoleLogHook if an `object` type wasn't passed.
   if (typeof data !== "object") {
@@ -163,4 +164,4 @@ function printTable(data) {
   return result.trim();
 }
 
-module.exports = printTable;
+export default printTable;

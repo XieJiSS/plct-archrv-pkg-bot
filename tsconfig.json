@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "ES2022",
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -10,14 +10,10 @@
     "outDir": "dist",
     "target": "es2020",
     "paths": {
-      "*": [
-        "node_modules/*",
-      ]
+      "*": ["node_modules/*"]
     },
     "allowJs": true,
     "checkJs": true
   },
-  "include": [
-    "src/*"
-  ]
+  "include": ["src/*"]
 }
