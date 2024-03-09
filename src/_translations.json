@@ -13,7 +13,7 @@
     "这个 package 不在认领记录中": "This package is not in the claimed records",
     "这个 package 不在你的认领记录中。请联系该包的认领人": "This package is not in your claim record. Please contact the claimant of the package",
     "你还没有认领任何 package": "You haven't claimed any packages yet",
-    "标记为 {1} 需要提供额外说明。": "To mark it as {1}, you need to provide additional comments.",
+    "将 {1} 标记为 {2} 需要提供额外说明。": "To mark {1} as {2}, you need to provide additional comments.",
     "标记 {1} 不允许手动添加，请考虑使用其它的 mark 替代": "Mark {1} cannot be set manually. Please consider using other marks instead",
     "状态更新成功": "Status updated successfully",
     "{1} 已被标记为 {2}：{3}": "{1} has been marked as {2}: {3}",

@@ -808,7 +808,7 @@ async function markCommandHandler(
 
   if (comment === "" && markConfig.requireComment) {
     verb(`mark ${mark} requires comment.`);
-    await sendMessage(chatId, toSafeMd(i18n`标记为 ${mark} 需要提供额外说明。`), {
+    await sendMessage(chatId, toSafeMd(i18n`将 ${pkg} 标记为 ${mark} 需要提供额外说明。`), {
       parse_mode: "MarkdownV2",
     });
     return;
