@@ -25,6 +25,7 @@ import {
   StrippedPackageStatus,
   StrippedPackageMark,
 } from "./types";
+import { i18n } from "./i18n";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,7 +46,7 @@ await loadAlias();
 
 const MARK_CONFIG: Record<string, MarkConfig> = {
   unknown: {
-    desc: "特殊状态，请咨询认领人",
+    desc: i18n`特殊状态，请咨询认领人`,
     helpMsg: "这个包还有未知的问题没解决，在其他 tag 都不适用的情况下用。使用时要记得补充说明",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -53,7 +54,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   upstreamed: {
-    desc: "等待上游",
+    desc: i18n`等待上游`,
     helpMsg: "需要等上游修复，可以是包自己的上游，也可以是 Arch Linux x86_64 上游",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -61,7 +62,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   outdated: {
-    desc: "需要滚版本",
+    desc: i18n`需要滚版本`,
     helpMsg: "这个包因为版本过时的原因无法出包",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
@@ -69,7 +70,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   outdated_dep: {
-    desc: "需要滚依赖版本",
+    desc: i18n`需要滚依赖版本`,
     helpMsg: "这个包因为某个依赖版本过时的原因无法出包",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -77,7 +78,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   stuck: {
-    desc: "无进展",
+    desc: i18n`无进展`,
     helpMsg: "这个包处理起来非常棘手，短时间内无法修复",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -85,7 +86,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   noqemu: {
-    desc: "仅在板子上编译成功",
+    desc: i18n`仅在板子上编译成功`,
     helpMsg: "这个包仅在 qemu-user 环境里构建失败",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
@@ -93,7 +94,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   ready: {
-    desc: "无需操作即可从上游编译",
+    desc: i18n`无需操作即可从上游编译`,
     helpMsg: "可以直接出包。注意：打了 patch 之后才能出包的不适用本标记。",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
@@ -104,7 +105,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     ],
   },
   ignore: {
-    desc: "不适用于 riscv64",
+    desc: i18n`不适用于 riscv64`,
     helpMsg: "该包对 riscv64 无意义。",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
@@ -120,7 +121,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     ],
   },
   missing_dep: {
-    desc: "缺少依赖",
+    desc: i18n`缺少依赖`,
     helpMsg: "这个包的依赖目前缺失，导致无法出包",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -128,7 +129,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   flaky: {
-    desc: "概率性编译失败",
+    desc: i18n`概率性编译失败`,
     helpMsg: "这个包可能需要多次打包才能成功",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -136,7 +137,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [{ name: "ready", op: "unmark", when: "mark" }],
   },
   failing: {
-    desc: "无法出包",
+    desc: i18n`无法出包`,
     helpMsg: "CI/CD 报告称这个包编译失败，无法出包。注意：不要手动修改此标记。",
     requireComment: false,
     allowUserModification: { mark: false, unmark: false },
@@ -144,7 +145,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [{ name: "ready", op: "unmark", when: "mark" }],
   },
   nocheck: {
-    desc: "无法通过测试",
+    desc: i18n`无法通过测试`,
     helpMsg: "需要 --nocheck 才能出包",
     requireComment: true,
     allowUserModification: { mark: true, unmark: true },
@@ -152,7 +153,7 @@ const MARK_CONFIG: Record<string, MarkConfig> = {
     triggers: [],
   },
   important: {
-    desc: "重要的包",
+    desc: i18n`重要的包`,
     helpMsg: "这个包是重要的，需要特别关注",
     requireComment: false,
     allowUserModification: { mark: true, unmark: true },
