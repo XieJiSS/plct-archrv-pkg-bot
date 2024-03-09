@@ -49,5 +49,11 @@ export function i18n(strings: TemplateStringsArray, ...args: any[]): string {
   for (let i = 0; i < args.length; i++) {
     translated = translated.replace(`{${i + 1}}`, args[i].toString());
   }
-  return leadingWhitespace[0] + translated + trailingWhitespace[0];
+  if (leadingWhitespace) {
+    translated = leadingWhitespace[0] + translated;
+  }
+  if (trailingWhitespace) {
+    translated = translated + trailingWhitespace[0];
+  }
+  return translated;
 }
