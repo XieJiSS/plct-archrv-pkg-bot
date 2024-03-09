@@ -26,7 +26,7 @@ export function i18n(strings: TemplateStringsArray, ...args: any[]): string {
   let rawKey = [...interleave(strings, placeholders)].join("");
   let leadingWhitespace = rawKey.match(/^\s+/);
   let trailingWhitespace = rawKey.match(/\s+$/);
-  if (leadingWhitespace.index === trailingWhitespace.index) {
+  if (leadingWhitespace && leadingWhitespace?.index === trailingWhitespace?.index) {
     // the key contains only whitespace
     return rawKey;
   }
