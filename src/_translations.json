@@ -51,7 +51,7 @@
     "{1} 已出包，不再被标记为 {2}": "{1} has been built successfully and is no longer marked as {2}",
     "{1} 因 {2} 出包，不再被标记为 {3}": "The {3} mark of {1} has been removed due to {2}'s successful build",
     "[{1}] 已从 {2} 的 {3} 状态内移除。": "[{1}] is removed from {2}'s {3} status.",
-    "{1} {2} 已被自动标记为 {3}": "{1} {2} has been automatically marked as {3}",
+    "{1} 已被自动标记为 {2}": "{1} has been automatically marked as {2}",
     ": {1} 已出包": ": {1} is built successfully"
   }
 }
