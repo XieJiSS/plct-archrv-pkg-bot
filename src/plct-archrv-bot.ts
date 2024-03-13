@@ -1516,7 +1516,7 @@ async function routeAddHandler(req: http.IncomingMessage, res: http.ServerRespon
     defer.add(deferKey, () => {
       sendMessage(
         CHAT_ID,
-        toSafeMd(i18n`${msgTypeStr} ${toSafeMd(pkgname)} 已被自动标记为 ${failingLogLink}`),
+        msgTypeStr + i18n` ${toSafeMd(pkgname)} 已被自动标记为 ${failingLogLink}`,
         {
           parse_mode: "MarkdownV2",
         },
