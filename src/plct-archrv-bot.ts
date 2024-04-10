@@ -1,6 +1,9 @@
 /* eslint-disable no-case-declarations */
-// @ts-check
-"use strict";
+
+/**
+ * @TODO: 出包时 auto unmark 检测是否是 nocheck 出包
+ * https://archriscv.felixc.at/.status/logs/$pkgbase/.nocheck
+ */
 
 import { config } from "dotenv";
 config({
@@ -1516,7 +1519,7 @@ async function routeAddHandler(req: http.IncomingMessage, res: http.ServerRespon
     defer.add(deferKey, () => {
       sendMessage(
         CHAT_ID,
-        msgTypeStr + i18n` ${toSafeMd(pkgname)} 已被自动标记为 ${failingLogLink}`,
+        msgTypeStr + i18n` ${toSafeMd(pkgname)} 已被自动标记为 ` + failingLogLink,
         {
           parse_mode: "MarkdownV2",
         },
