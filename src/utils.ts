@@ -4,6 +4,11 @@
 change status & marks db to use id instead of name, and retrieve name dynamically
  */
 
+import { config } from "dotenv";
+config({
+  path: "./config/.env",
+});
+
 import assert from "assert";
 import crypto from "crypto";
 import _equal from "deep-equal";
@@ -30,7 +35,11 @@ import { i18n } from "./i18n";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BASE_LOG_DIR = process.env["PLCT_BASE_LOG_DIR"] || "";
+const BASE_LOG_DIR = process.env["PLCT_BASE_LOG_DIR"] || "https://archriscv.felixc.at/.status/logs/{pkgname}/";
+
+if (!process.env["PLCT_BASE_LOG_DIR"]) {
+  verb("[ERRO] utils.ts: missing PLCT_BASE_LOG_DIR");
+}
 
 let packageStatus: PackageStatus[] = [];
 await loadPackageStatus();
