@@ -1516,6 +1516,7 @@ async function routeAddHandler(req: http.IncomingMessage, res: http.ServerRespon
     const msgTypeStr = wrapCode("(auto-mark)");
     const failingLogLink = getErrorLogDirLinkMd(pkgname, "failing");
     // defer 输出
+    verb("failingLogLink", failingLogLink);
     defer.add(deferKey, () => {
       sendMessage(
         CHAT_ID,
