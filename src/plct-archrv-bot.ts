@@ -1361,7 +1361,28 @@ async function routeDeleteHandler(req: http.IncomingMessage, res: http.ServerRes
 
   (async function fencedAtomicOps() {
     // 自动出包后，首先把这个包的特定 mark 清掉
+    const isNoCheck = await localUtils.checkIsBuiltWithNoCheck(pkgname);
+    const existingMarks = getPackageMarkNamesByPkgname(pkgname);
+
     const targetMarks = ["outdated", "stuck", "ready", "outdated_dep", "missing_dep", "unknown", "ignore", "failing"];
+
+    if (isNoCheck) {
+      if (existingMarks.includes("failing")) {
+        // 如果是 nocheck，且当前有 failing 标记，那就要保留 failing 标记
+        targetMarks.splice(targetMarks.indexOf("failing"), 1);
+      } else {
+        // 如果是 nocheck，且当前没有 failing 标记，说明是在 bootstrap，不管
+        await sendMessage(
+          CHAT_ID,
+          wrapCode("(auto-unmark)") + toSafeMd(i18n` ${pkgname} 已出包，但当前没有 failing 标记`),
+          {
+            parse_mode: "MarkdownV2",
+          },
+          true
+        );
+      }
+    }
+
     await _unmarkMultiple(pkgname, targetMarks, (success, reason) => {
       if (!success) {
         return;
@@ -1572,8 +1593,8 @@ const server = http.createServer((req, res) => {
   }
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  verb('[ERROR] Unhandled rejection at:', promise, 'due to', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  verb("[ERROR] Unhandled rejection at:", promise, "due to", reason);
 });
 
 server.listen(30644);

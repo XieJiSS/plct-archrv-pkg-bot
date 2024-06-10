@@ -289,6 +289,19 @@ function _updatePackageMarkSchema(oldPackageMarks: OldPackageMark[]) {
   });
 }
 
+async function checkIsBuiltWithNoCheck(pkg: string) {
+  const url = `https://archriscv.felixc.at/.status/logs/${pkg}/.nocheck`;
+  try {
+    if (await fetch(url).then((res) => res.ok)) {
+      return true;
+    }
+    return false;
+  } catch (e: any) {
+    verb(checkIsBuiltWithNoCheck, "failed to fetch", url, "due to", e);
+    return false;
+  }
+}
+
 async function loadAlias() {
   verb(loadAlias);
   // async require
@@ -739,6 +752,7 @@ export default {
   storePackageStatusSync,
   storePackageMarks,
   storePackageMarksSync,
+  checkIsBuiltWithNoCheck,
   getTodayTimestamp,
   getCurrentTimeStr,
   getMarkConfig,

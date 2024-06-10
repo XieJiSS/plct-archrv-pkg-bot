@@ -48,6 +48,7 @@
     "该包已被 {1} 认领。": "This package has been claimed by {1}.",
     "该包目前不具有任何标记": "This package currently has no marks",
     "当前群的消息队列中没有 throttled 状态的消息": "There are no messages throttled in this group's message queue",
+    "{1} 已出包，但当前没有 failing 标记": "{1} is built successfully but was not marked as failing before this build",
     "{1} 已出包，不再被标记为 {2}": "{1} has been built successfully and is no longer marked as {2}",
     "{1} 因 {2} 出包，不再被标记为 {3}": "The {3} mark of {1} has been removed due to {2}'s successful build",
     "[{1}] 已从 {2} 的 {3} 状态内移除。": "[{1}] is removed from {2}'s {3} status.",
