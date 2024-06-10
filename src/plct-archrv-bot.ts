@@ -15,6 +15,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { inspect } from "util";
 import { fileURLToPath } from "url";
 import path from "node:path";
+import process from "node:process";
 import crypto from "crypto";
 import http from "http";
 import lock from "lockfile";
@@ -1569,6 +1570,10 @@ const server = http.createServer((req, res) => {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Not Found");
   }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  verb('[ERROR] Unhandled rejection at:', promise, 'due to', reason);
 });
 
 server.listen(30644);
